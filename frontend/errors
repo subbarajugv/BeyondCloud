@@ -1,0 +1,164 @@
+
+  VITE v7.2.2  ready in 2698 ms
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: use --host to expose
+  ➜  press h + enter to show help
+
+  ╷
+9 │         $src: append($src, url('#{$font-folder}/KaTeX_#{$family}-#{$family-suffix}.woff2') format('woff2'), comma);
+  │               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  ╵
+    node_modules/katex/src/styles/fonts.scss 9:15   generate-src()
+    node_modules/katex/src/styles/fonts.scss 42:11  font-face()
+    node_modules/katex/src/styles/fonts.scss 52:1   @import
+    node_modules/katex/src/styles/katex.scss 2:9    @import
+    src/styles/katex-custom.scss 17:9               root stylesheet
+
+Deprecation Warning [global-builtin]: Global built-in functions are deprecated and will be removed in Dart Sass 3.0.0.
+Use list.length instead.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+    ╷
+344 │         @for $from from 1 through length($sizes) {
+    │                                   ^^^^^^^^^^^^^^
+    ╵
+    node_modules/katex/src/styles/katex.scss 344:35  @import
+    src/styles/katex-custom.scss 17:9                root stylesheet
+
+Deprecation Warning [global-builtin]: Global built-in functions are deprecated and will be removed in Dart Sass 3.0.0.
+Use list.length instead.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+    ╷
+345 │             @for $to from 1 through length($sizes) {
+    │                                     ^^^^^^^^^^^^^^
+    ╵
+    node_modules/katex/src/styles/katex.scss 345:37  @import
+    src/styles/katex-custom.scss 17:9                root stylesheet
+
+Deprecation Warning [global-builtin]: Global built-in functions are deprecated and will be removed in Dart Sass 3.0.0.
+Use list.nth instead.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+    ╷
+348 │                     font-size: calc((nth($sizes, $to) / nth($sizes, $from)) * 1em);
+    │                                      ^^^^^^^^^^^^^^^^
+    ╵
+    node_modules/katex/src/styles/katex.scss 348:38  @import
+    src/styles/katex-custom.scss 17:9                root stylesheet
+
+Deprecation Warning [global-builtin]: Global built-in functions are deprecated and will be removed in Dart Sass 3.0.0.
+Use list.nth instead.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+    ╷
+348 │                     font-size: calc((nth($sizes, $to) / nth($sizes, $from)) * 1em);
+    │                                                         ^^^^^^^^^^^^^^^^^^
+    ╵
+    node_modules/katex/src/styles/katex.scss 348:57  @import
+    src/styles/katex-custom.scss 17:9                root stylesheet
+
+8:40:48 PM [vite] (client) page reload static/test_ollama.html
+8:40:48 PM [vite] (client) page reload public/test_ollama.html
+^C
+subba@subbi:~/llama.cpp/llamacpp-auth-webui/frontend$ ^C
+subba@subbi:~/llama.cpp/llamacpp-auth-webui/frontend$ ^C
+subba@subbi:~/llama.cpp/llamacpp-auth-webui/frontend$ ^C
+subba@subbi:~/llama.cpp/llamacpp-auth-webui/frontend$ ^C
+subba@subbi:~/llama.cpp/llamacpp-auth-webui/frontend$ pkill -f "vite dev"
+subba@subbi:~/llama.cpp/llamacpp-auth-webui/frontend$ npx vite dev --port 5173
+
+  VITE v7.2.2  ready in 2693 ms
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: use --host to expose
+  ➜  press h + enter to show help
+Deprecation Warning [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+   ╷
+17 │ @import 'katex/src/styles/katex.scss';
+   │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   ╵
+    src/styles/katex-custom.scss 17:9  root stylesheet
+
+Deprecation Warning [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+  ╷
+2 │ @import "./fonts.scss";
+  │         ^^^^^^^^^^^^^^
+  ╵
+    node_modules/katex/src/styles/katex.scss 2:9  @import
+    src/styles/katex-custom.scss 17:9             root stylesheet
+
+Deprecation Warning [global-builtin]: Global built-in functions are deprecated and will be removed in Dart Sass 3.0.0.
+Use list.append instead.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+  ╷
+9 │         $src: append($src, url('#{$font-folder}/KaTeX_#{$family}-#{$family-suffix}.woff2') format('woff2'), comma);
+  │               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  ╵
+    node_modules/katex/src/styles/fonts.scss 9:15   generate-src()
+    node_modules/katex/src/styles/fonts.scss 42:11  font-face()
+    node_modules/katex/src/styles/fonts.scss 52:1   @import
+    node_modules/katex/src/styles/katex.scss 2:9    @import
+    src/styles/katex-custom.scss 17:9               root stylesheet
+
+Deprecation Warning [global-builtin]: Global built-in functions are deprecated and will be removed in Dart Sass 3.0.0.
+Use list.length instead.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+    ╷
+344 │         @for $from from 1 through length($sizes) {
+    │                                   ^^^^^^^^^^^^^^
+    ╵
+    node_modules/katex/src/styles/katex.scss 344:35  @import
+    src/styles/katex-custom.scss 17:9                root stylesheet
+
+Deprecation Warning [global-builtin]: Global built-in functions are deprecated and will be removed in Dart Sass 3.0.0.
+Use list.length instead.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+    ╷
+345 │             @for $to from 1 through length($sizes) {
+    │                                     ^^^^^^^^^^^^^^
+    ╵
+    node_modules/katex/src/styles/katex.scss 345:37  @import
+    src/styles/katex-custom.scss 17:9                root stylesheet
+
+Deprecation Warning [global-builtin]: Global built-in functions are deprecated and will be removed in Dart Sass 3.0.0.
+Use list.nth instead.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+    ╷
+348 │                     font-size: calc((nth($sizes, $to) / nth($sizes, $from)) * 1em);
+    │                                      ^^^^^^^^^^^^^^^^
+    ╵
+    node_modules/katex/src/styles/katex.scss 348:38  @import
+    src/styles/katex-custom.scss 17:9                root stylesheet
+
+Deprecation Warning [global-builtin]: Global built-in functions are deprecated and will be removed in Dart Sass 3.0.0.
+Use list.nth instead.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+    ╷
+348 │                     font-size: calc((nth($sizes, $to) / nth($sizes, $from)) * 1em);
+    │                                                         ^^^^^^^^^^^^^^^^^^
+    ╵
+    node_modules/katex/src/styles/katex.scss 348:57  @import
+    src/styles/katex-custom.scss 17:9                root stylesheet
+8:43:04 PM [vite] (client) hmr update /src/app.css

@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Ollama Debug (via Proxy)</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #1a1a2e;
+            color: #eee;
+        }
+
+        .output {
+            border: 1px solid #444;
+            padding: 10px;
+            margin: 10px 0;
+            max-height: 500px;
+            overflow: auto;
+            white-space: pre-wrap;
+            background: #16213e;
+        }
+
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            background: #0f3460;
+            color: white;
+            border: none;
+        }
+
+        button:hover {
+            background: #e94560;
+        }
+
+        h3 {
+            margin-top: 20px;
+            color: #e94560;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Ollama Debug (via Vite Proxy)</h1>
+    <p>This test goes through the Vite proxy at /v1/* -> Ollama:11434</p>
+    <p><strong>Current proxy target:</strong> Check vite.config.ts (should be 11434 for Ollama, 8080 for llama.cpp)</p>
+
+    <h3>Step 1: Test Models Endpoint</h3>
+    <button onclick="testModels()">Test /v1/models</button>
+    <div id="models-output" class="output">Click to test...</div>
+
+    <h3>Step 2: Test Chat (Streaming)</h3>
+    <button onclick="testChat()">Test /v1/chat/completions</button>
+    <div id="chat-output" class="output">Click to test...</div>
+
+    <script>
+        async function testModels() {
+            const output = document.getElementById('models-output');
+            output.textContent = 'Testing /v1/models via proxy...\n';
+
+            try {
+                const response = await fetch('/v1/models');
+                output.textContent += `Status: ${response.status} ${response.statusText}\n`;
+                output.textContent += `Content-Type: ${response.headers.get('content-type')}\n\n`;
+
+                if (response.ok) {
+                    const data = await response.json();
+                    output.textContent += `Models:\n${JSON.stringify(data, null, 2)}`;
+                } else {
+                    output.textContent += `Error: ${await response.text()}`;
+                }
+            } catch (e) {
+                output.textContent += `Exception: ${e.message}`;
+            }
+        }
+
+        async function testChat() {
+            const output = document.getElementById('chat-output');
+            output.textContent = 'Testing /v1/chat/completions via proxy...\n';
+
+            try {
+                const response = await fetch('/v1/chat/completions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        model: "gemma3:12B",
+                        messages: [{ role: "user", content: "Say hello" }],
+                        stream: true
+                    })
+                });
+
+                output.textContent += `Status: ${response.status} ${response.statusText}\n`;
+                output.textContent += `Content-Type: ${response.headers.get('content-type')}\n\n`;
+
+                if (!response.ok) {
+                    output.textContent += `Error Body:\n${await response.text()}`;
+                    return;
+                }
+
+                output.textContent += '--- Stream Chunks ---\n';
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let chunkCount = 0;
+                let fullContent = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const chunk = decoder.decode(value, { stream: true });
+                    chunkCount++;
+                    output.textContent += `\n[Chunk ${chunkCount}]:\n${chunk}`;
+
+                    // Try to extract content
+                    const lines = chunk.split('\n');
+                    for (const line of lines) {
+                        if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+                            try {
+                                const json = JSON.parse(line.slice(6));
+                                const content = json.choices?.[0]?.delta?.content;
+                                if (content) fullContent += content;
+                            } catch (e) { }
+                        }
+                    }
+
+                    output.scrollTop = output.scrollHeight;
+                }
+
+                output.textContent += `\n\n--- Done (${chunkCount} chunks) ---`;
+                output.textContent += `\n\n--- Extracted Content ---\n${fullContent}`;
+            } catch (e) {
+                output.textContent += `Exception: ${e.message}`;
+            }
+        }
+    </script>
+</body>
+
+</html>

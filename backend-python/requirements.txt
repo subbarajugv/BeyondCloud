@@ -1,0 +1,33 @@
+# Python Backend Dependencies
+# Phase 0: Multi-Backend LLM Integration
+
+# Core Framework
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+
+# Configuration
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+python-dotenv>=1.0.0
+
+# HTTP Client (for LLM calls)
+httpx>=0.26.0
+
+# Database (Phase 1)
+sqlalchemy>=2.0.25
+asyncpg>=0.29.0
+
+# Authentication (Phase 1)
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+
+# Email (Phase 1)
+aiosmtplib>=3.0.0
+
+# Validation
+email-validator>=2.1.0
+
+# Testing
+pytest>=7.4.0
+pytest-asyncio>=0.23.0
+httpx>=0.26.0

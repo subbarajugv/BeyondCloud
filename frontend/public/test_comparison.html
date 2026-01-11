@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Ollama vs llama.cpp Comparison</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+        }
+
+        .output {
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin: 10px 0;
+            max-height: 400px;
+            overflow: auto;
+            white-space: pre-wrap;
+        }
+
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+        }
+
+        h3 {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>LLM Server Comparison</h1>
+
+    <h3>Test Ollama (port 11434)</h3>
+    <button onclick="testServer('ollama')">Test Ollama</button>
+    <div id="ollama-output" class="output">Click to test...</div>
+
+    <h3>Test llama.cpp (port 8080)</h3>
+    <button onclick="testServer('llamacpp')">Test llama.cpp</button>
+    <div id="llamacpp-output" class="output">Click to test...</div>
+
+    <script>
+        async function testServer(server) {
+            const port = server === 'ollama' ? 11434 : 8080;
+            const outputEl = document.getElementById(`${server}-output`);
+            outputEl.textContent = `Testing ${server} on port ${port}...\n`;
+
+            try {
+                // Test /v1/models first
+                outputEl.textContent += '\n--- Testing /v1/models ---\n';
+                try {
+                    const modelsRes = await fetch(`http://localhost:${port}/v1/models`);
+                    outputEl.textContent += `Status: ${modelsRes.status}\n`;
+                    const modelsData = await modelsRes.json();
+                    outputEl.textContent += `Response: ${JSON.stringify(modelsData, null, 2)}\n`;
+                } catch (e) {
+                    outputEl.textContent += `Error: ${e.message}\n`;
+                }
+
+                // Test chat completion
+                outputEl.textContent += '\n--- Testing /v1/chat/completions ---\n';
+                const model = server === 'ollama' ? 'gemma3:12B' : 'gemma-3-1b-it-Q4_K_M';
+
+                const chatRes = await fetch(`http://localhost:${port}/v1/chat/completions`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        model: model,
+                        messages: [{ role: "user", content: "Say hello in one word" }],
+                        stream: true
+                    })
+                });
+
+                outputEl.textContent += `Status: ${chatRes.status}\n`;
+                outputEl.textContent += `Content-Type: ${chatRes.headers.get('content-type')}\n`;
+
+                if (!chatRes.ok) {
+                    outputEl.textContent += `Error: ${await chatRes.text()}\n`;
+                    return;
+                }
+
+                outputEl.textContent += '\n--- Stream Chunks ---\n';
+                const reader = chatRes.body.getReader();
+                const decoder = new TextDecoder();
+                let chunkCount = 0;
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const chunk = decoder.decode(value, { stream: true });
+                    chunkCount++;
+                    outputEl.textContent += `\n[Chunk ${chunkCount}]:\n${chunk}`;
+                    outputEl.scrollTop = outputEl.scrollHeight;
+                }
+
+                outputEl.textContent += `\n\n--- Done (${chunkCount} chunks) ---`;
+            } catch (e) {
+                outputEl.textContent += `\nException: ${e.message}`;
+            }
+        }
+    </script>
+</body>
+
+</html>
