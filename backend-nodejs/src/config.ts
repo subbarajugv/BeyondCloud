@@ -2,7 +2,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 
 // Load .env file
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 export const config = {
     // Server
@@ -14,6 +14,7 @@ export const config = {
 
     // JWT (for later phases)
     jwtSecret: process.env.JWT_SECRET || 'change-this-in-production',
+    jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
     jwtAlgorithm: process.env.JWT_ALGORITHM || 'HS256',
     accessTokenExpireMinutes: parseInt(process.env.ACCESS_TOKEN_EXPIRE_MINUTES || '15', 10),
     refreshTokenExpireDays: parseInt(process.env.REFRESH_TOKEN_EXPIRE_DAYS || '7', 10),

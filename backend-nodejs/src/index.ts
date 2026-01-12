@@ -4,7 +4,10 @@ import helmet from 'helmet';
 import compression from 'compression';
 import { config } from './config';
 import providersRouter from './routes/providers';
+import authRouter from './routes/auth';
+import conversationsRouter from './routes/conversations';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
+import { testConnection, initializeDatabase } from './db';
 
 const app = express();
 
@@ -50,26 +53,18 @@ app.get('/api/models', (req: Request, res: Response) => {
     providersRouter(req, res, () => { });
 });
 
-// =============================================================================
-// Placeholder routes for future phases
-// =============================================================================
-
 // Auth routes (Phase 1)
-app.use('/api/auth', (_req, res) => {
-    res.status(501).json({
-        error: {
-            code: 'NOT_IMPLEMENTED',
-            message: 'Authentication endpoints coming in Phase 1',
-        },
-    });
-});
+app.use('/api/auth', authRouter);
 
-// Chat completion (Phase 1)
+// Conversations routes (Phase 1)
+app.use('/api/conversations', conversationsRouter);
+
+// Chat completion (Phase 1 - coming soon with streaming)
 app.post('/api/chat/completions', (_req, res) => {
     res.status(501).json({
         error: {
             code: 'NOT_IMPLEMENTED',
-            message: 'Chat completion endpoint coming in Phase 1',
+            message: 'Chat completion with streaming coming soon',
         },
     });
 });
@@ -87,24 +82,61 @@ app.use(errorHandler);
 
 const PORT = config.port;
 
-app.listen(PORT, () => {
-    console.log(`
+async function startServer() {
+    // Test database connection
+    const dbConnected = await testConnection();
+
+    if (!dbConnected) {
+        console.error('❌ Failed to connect to database. Check DATABASE_URL in .env');
+        console.log('💡 Hint: Make sure PostgreSQL is running and database exists');
+        console.log('   Run: psql -c "CREATE DATABASE beyondcloud;"');
+        process.exit(1);
+    }
+
+    // Initialize database schema
+    try {
+        await initializeDatabase();
+    } catch (error) {
+        console.error('❌ Failed to initialize database schema:', error);
+        process.exit(1);
+    }
+
+    app.listen(PORT, () => {
+        console.log(`
 ╔═══════════════════════════════════════════════════════════╗
 ║                                                           ║
 ║   🦙 llama.cpp Auth WebUI - Backend                       ║
 ║                                                           ║
 ║   Server running on http://localhost:${PORT}               ║
 ║   Environment: ${config.nodeEnv.padEnd(11)}                           ║
-║   Default LLM: ${config.defaultLlmProvider.padEnd(11)}                           ║
+║   Database: Connected                                     ║
 ║                                                           ║
-║   Endpoints:                                              ║
+║   Phase 0 - Providers:                                    ║
 ║   - GET  /api/health                                      ║
 ║   - GET  /api/providers                                   ║
 ║   - POST /api/providers/test                              ║
 ║   - GET  /api/models                                      ║
 ║                                                           ║
+║   Phase 1 - Auth:                                         ║
+║   - POST /api/auth/register                               ║
+║   - POST /api/auth/login                                  ║
+║   - POST /api/auth/logout                                 ║
+║   - GET  /api/auth/me                                     ║
+║   - PUT  /api/auth/profile                                ║
+║                                                           ║
+║   Phase 1 - Conversations:                                ║
+║   - GET    /api/conversations                             ║
+║   - POST   /api/conversations                             ║
+║   - GET    /api/conversations/:id                         ║
+║   - PUT    /api/conversations/:id                         ║
+║   - DELETE /api/conversations/:id                         ║
+║   - POST   /api/conversations/:id/messages                ║
+║                                                           ║
 ╚═══════════════════════════════════════════════════════════╝
-  `);
-});
+    `);
+    });
+}
+
+startServer().catch(console.error);
 
 export default app;

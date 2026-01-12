@@ -1,8 +1,5 @@
 -- BeyondCloud Database Schema
--- Run this to set up the database
-
--- Create database (run as postgres superuser)
--- CREATE DATABASE beyondcloud;
+-- Run this to set up the database (idempotent)
 
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
@@ -43,8 +40,10 @@ CREATE TABLE IF NOT EXISTS messages (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Add Foreign Key for current_node (circular dependency handled by adding nullable column then constraint, or just logical reference)
--- We add constraint afterwards to allow circularity if needed, or just let it be loose.
+-- Add Foreign Key for current_node (idempotent)
+ALTER TABLE conversations 
+DROP CONSTRAINT IF EXISTS fk_conversations_current_node;
+
 ALTER TABLE conversations 
 ADD CONSTRAINT fk_conversations_current_node 
 FOREIGN KEY (current_node) REFERENCES messages(id) ON DELETE SET NULL;
@@ -56,7 +55,7 @@ CREATE INDEX IF NOT EXISTS idx_messages_parent_id ON messages(parent_id);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_conversations_updated_at ON conversations(updated_at DESC);
 
--- Updated at trigger
+-- Updated at trigger function
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -65,6 +64,11 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
+-- Drop existing triggers before recreating (idempotent)
+DROP TRIGGER IF EXISTS update_users_updated_at ON users;
+DROP TRIGGER IF EXISTS update_conversations_updated_at ON conversations;
+
+-- Recreate triggers
 CREATE TRIGGER update_users_updated_at
     BEFORE UPDATE ON users
     FOR EACH ROW

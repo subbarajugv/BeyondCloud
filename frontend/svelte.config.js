@@ -12,7 +12,6 @@ const config = {
 		paths: {
 			relative: true
 		},
-		router: { type: 'hash' },
 		adapter: adapter({
 			pages: '../public',
 			assets: '../public',

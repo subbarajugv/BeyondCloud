@@ -7,12 +7,27 @@
 		isLoading,
 		setTitleUpdateConfirmationCallback
 	} from '$lib/stores/chat.svelte';
+	import { authStore } from '$lib/stores/auth.svelte';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import { serverStore } from '$lib/stores/server.svelte';
 	import { config, settingsStore } from '$lib/stores/settings.svelte';
 	import { goto } from '$app/navigation';
+	import { onMount } from 'svelte';
 
 	let { children } = $props();
+
+	// Auth Guard
+	onMount(() => {
+		if (!authStore.isAuthenticated && !authStore.isLoading) {
+			goto('/login');
+		}
+	});
+
+	$effect(() => {
+		if (!authStore.isLoading && !authStore.isAuthenticated) {
+			goto('/login');
+		}
+	});
 
 	let isChatRoute = $derived(page.route.id === '/(app)/chat/[id]');
 	let isHomeRoute = $derived(page.route.id === '/(app)');
@@ -29,6 +44,13 @@
 	let titleUpdateCurrentTitle = $state('');
 	let titleUpdateNewTitle = $state('');
 	let titleUpdateResolve: ((value: boolean) => void) | null = null;
+	let showUserMenu = $state(false);
+
+	// Logout handler
+	function handleLogout() {
+		authStore.logout();
+		goto('/login');
+	}
 
 	// Global keyboard shortcuts
 	function handleKeydown(event: KeyboardEvent) {
@@ -137,6 +159,40 @@
 		/>
 
 		<Sidebar.Inset class="flex flex-1 flex-col overflow-hidden">
+			<!-- User Menu - positioned to the left of settings button -->
+			<div class="fixed right-16 top-4 z-[51]">
+				<button
+					onclick={() => showUserMenu = !showUserMenu}
+					class="flex items-center gap-2 rounded-lg bg-slate-800/80 px-3 py-2 text-sm text-white shadow-lg backdrop-blur-sm transition-colors hover:bg-slate-700"
+				>
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+						<circle cx="12" cy="7" r="4"></circle>
+					</svg>
+					<span class="hidden sm:inline">{authStore.user?.displayName || authStore.user?.email || 'User'}</span>
+				</button>
+
+				{#if showUserMenu}
+					<div class="absolute right-0 mt-2 w-48 rounded-lg border border-slate-700 bg-slate-800 py-2 shadow-xl">
+						<div class="border-b border-slate-700 px-4 py-2">
+							<p class="text-sm font-medium text-white">{authStore.user?.displayName || 'User'}</p>
+							<p class="text-xs text-slate-400">{authStore.user?.email}</p>
+						</div>
+						<button
+							onclick={handleLogout}
+							class="flex w-full items-center gap-2 px-4 py-2 text-sm text-red-400 transition-colors hover:bg-slate-700"
+						>
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+								<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+								<polyline points="16 17 21 12 16 7"></polyline>
+								<line x1="21" y1="12" x2="9" y2="12"></line>
+							</svg>
+							Sign out
+						</button>
+					</div>
+				{/if}
+			</div>
+
 			{@render children?.()}
 		</Sidebar.Inset>
 	</div>
