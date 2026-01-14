@@ -1,11 +1,11 @@
-# llama.cpp Authenticated WebUI
+# BeyondCloud multi-tenant multi-user chat interface
 
-A multi-user web interface for llama.cpp with user authentication and login functionality.
+A multi-user web interface for llama.cpp, ollama, cloud models with user authentication and login functionality.
 
 ## Project Structure
 
 ```
-llamacpp-auth-webui/
+BeyondCloud-webui/
 ├── frontend/              # Svelte 5 WebUI (copied from llama.cpp)
 ├── backend-python/        # Python/FastAPI implementation
 ├── backend-nodejs/        # Node.js/Express implementation
