@@ -4,6 +4,7 @@
 import { authApi, setAccessToken } from '$lib/services/api';
 import type { LoginCredentials, RegisterCredentials, User } from '$lib/types/auth';
 import { browser } from '$app/environment';
+import { syncFromApi, setAuthenticated } from '$lib/stores/settings.svelte';
 
 const TOKEN_KEY = 'auth_token';
 const USER_KEY = 'auth_user';
@@ -28,6 +29,7 @@ class AuthStore {
         if (storedToken) {
             this.token = storedToken;
             setAccessToken(storedToken);
+            setAuthenticated(true);
 
             if (storedUser) {
                 try {
@@ -37,10 +39,12 @@ class AuthStore {
                 }
             }
 
-            // Verify token validity
-            this.fetchProfile().catch(() => {
-                this.logout();
-            });
+            // Verify token validity and sync settings
+            this.fetchProfile()
+                .then(() => syncFromApi())
+                .catch(() => {
+                    this.logout();
+                });
         }
 
         this.isLoading = false;
@@ -68,6 +72,9 @@ class AuthStore {
         try {
             const { user, token } = await authApi.login(credentials);
             this.setSession(user, token);
+            // Sync settings from API after login (Phase 3)
+            setAuthenticated(true);
+            await syncFromApi();
             return user;
         } catch (e: unknown) {
             const error = e as Error;
@@ -82,6 +89,7 @@ class AuthStore {
         this.user = null;
         this.token = null;
         this.error = null;
+        setAuthenticated(false);
 
         if (browser) {
             localStorage.removeItem(TOKEN_KEY);

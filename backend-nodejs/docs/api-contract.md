@@ -154,6 +154,60 @@ This document defines the complete API contract between frontend and backend. On
 
 ---
 
+## Settings Endpoints
+
+### GET /settings
+
+Get user's settings (returns empty object if none saved yet).
+
+**Headers:** `Authorization: Bearer <accessToken>`
+
+**Response (200):**
+```json
+{
+  "settings": {
+    "temperature": 0.8,
+    "max_tokens": -1,
+    "theme": "dark",
+    "forceVisionSupport": true
+  }
+}
+```
+
+---
+
+### PUT /settings
+
+Save/update user's settings. Merges with existing settings (upsert).
+
+**Headers:** `Authorization: Bearer <accessToken>`
+
+**Request:**
+```json
+{
+  "settings": {
+    "temperature": 0.7,
+    "theme": "light"
+  }
+}
+```
+
+**Response (200):**
+```json
+{
+  "settings": {
+    "temperature": 0.7,
+    "max_tokens": -1,
+    "theme": "light",
+    "forceVisionSupport": true
+  }
+}
+```
+
+**Errors:** `400` (settings object missing), `401` (unauthorized)
+
+---
+
 ## Conversations Endpoints
 
 ### GET /conversations

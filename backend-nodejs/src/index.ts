@@ -6,6 +6,7 @@ import { config } from './config';
 import providersRouter from './routes/providers';
 import authRouter from './routes/auth';
 import conversationsRouter from './routes/conversations';
+import settingsRouter from './routes/settings';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { testConnection, initializeDatabase } from './db';
 
@@ -58,6 +59,9 @@ app.use('/api/auth', authRouter);
 
 // Conversations routes (Phase 1)
 app.use('/api/conversations', conversationsRouter);
+
+// Settings routes (Phase 3)
+app.use('/api/settings', settingsRouter);
 
 // Chat completion (Phase 1 - coming soon with streaming)
 app.post('/api/chat/completions', (_req, res) => {

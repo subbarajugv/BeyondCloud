@@ -37,12 +37,14 @@ import { normalizeFloatingPoint } from '$lib/utils/precision';
 import { ParameterSyncService } from '$lib/services/parameter-sync';
 import { serverStore } from '$lib/stores/server.svelte';
 import { setConfigValue, getConfigValue, configToParameterRecord } from '$lib/utils/config-helpers';
+import { settingsApi, type SettingsData } from '$lib/services/settingsApi';
 
 class SettingsStore {
 	config = $state<SettingsConfigType>({ ...SETTING_CONFIG_DEFAULT });
 	theme = $state<string>('auto');
 	isInitialized = $state(false);
 	userOverrides = $state<Set<string>>(new Set());
+	private _isAuthenticated = false;
 
 	/**
 	 * Helper method to get server defaults with null safety
@@ -164,18 +166,66 @@ class SettingsStore {
 	}
 
 	/**
-	 * Save the current configuration to localStorage
+	 * Save the current configuration to localStorage (and API if authenticated)
 	 */
 	private saveConfig() {
 		if (!browser) return;
 
 		try {
 			localStorage.setItem('config', JSON.stringify(this.config));
-
 			localStorage.setItem('userOverrides', JSON.stringify(Array.from(this.userOverrides)));
+
+			// Also sync to API if authenticated (fire and forget)
+			if (this._isAuthenticated) {
+				this.syncToApi().catch(err => console.warn('Failed to sync settings to API:', err));
+			}
 		} catch (error) {
 			console.error('Failed to save config to localStorage:', error);
 		}
+	}
+
+	/**
+	 * Sync settings from API (call after login)
+	 */
+	async syncFromApi(): Promise<void> {
+		if (!browser) return;
+
+		try {
+			const apiSettings = await settingsApi.getSettings();
+			if (apiSettings && Object.keys(apiSettings).length > 0) {
+				// Merge API settings with current config (API takes precedence)
+				this.config = {
+					...SETTING_CONFIG_DEFAULT,
+					...this.config,
+					...apiSettings as Partial<SettingsConfigType>
+				};
+				// Save merged config to localStorage
+				localStorage.setItem('config', JSON.stringify(this.config));
+				console.log('Settings synced from API');
+			}
+		} catch (error) {
+			console.warn('Failed to sync settings from API, using local settings:', error);
+		}
+	}
+
+	/**
+	 * Sync settings to API (called automatically on save when authenticated)
+	 */
+	async syncToApi(): Promise<void> {
+		if (!browser) return;
+
+		try {
+			await settingsApi.saveSettings(this.config as SettingsData);
+		} catch (error) {
+			console.warn('Failed to sync settings to API:', error);
+		}
+	}
+
+	/**
+	 * Set authentication state (call when auth state changes)
+	 */
+	setAuthenticated(isAuthenticated: boolean): void {
+		this._isAuthenticated = isAuthenticated;
 	}
 
 	/**
@@ -394,3 +444,8 @@ export const resetParameterToServerDefault =
 	settingsStore.resetParameterToServerDefault.bind(settingsStore);
 export const getParameterDiff = settingsStore.getParameterDiff.bind(settingsStore);
 export const clearAllUserOverrides = settingsStore.clearAllUserOverrides.bind(settingsStore);
+
+// API sync methods (Phase 3)
+export const syncFromApi = settingsStore.syncFromApi.bind(settingsStore);
+export const syncToApi = settingsStore.syncToApi.bind(settingsStore);
+export const setAuthenticated = settingsStore.setAuthenticated.bind(settingsStore);
