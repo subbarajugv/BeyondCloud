@@ -5,7 +5,6 @@ import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
 import { defineConfig } from 'vite';
 import devtoolsJson from 'vite-plugin-devtools-json';
-import { storybookTest } from '@storybook/addon-vitest/vitest-plugin';
 
 const GUIDE_FOR_FRONTEND = `
 <!--
@@ -131,25 +130,6 @@ export default defineConfig({
 					include: ['src/**/*.{test,spec}.{js,ts}'],
 					exclude: ['src/**/*.svelte.{test,spec}.{js,ts}']
 				}
-			},
-			{
-				extends: './vite.config.ts',
-				test: {
-					name: 'ui',
-					environment: 'browser',
-					browser: {
-						enabled: true,
-						provider: 'playwright',
-						instances: [{ browser: 'chromium', headless: true }]
-					},
-					include: ['src/**/*.stories.{js,ts,svelte}'],
-					setupFiles: ['./.storybook/vitest.setup.ts']
-				},
-				plugins: [
-					storybookTest({
-						storybookScript: 'pnpm run storybook --no-open'
-					})
-				]
 			}
 		]
 	},

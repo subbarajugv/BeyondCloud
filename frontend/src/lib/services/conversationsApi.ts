@@ -180,5 +180,26 @@ export const conversationsApi = {
         });
         const data = await handleResponse<AddMessageResponse>(response);
         return data.message;
+    },
+
+    /**
+     * PUT /api/conversations/:convId/messages/:msgId - Update a message
+     */
+    async updateMessage(
+        conversationId: string,
+        messageId: string,
+        updates: {
+            content?: string;
+            reasoning_content?: string;
+            model?: string;
+        }
+    ): Promise<ApiMessage> {
+        const response = await fetch(`${API_BASE}/conversations/${conversationId}/messages/${messageId}`, {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(updates)
+        });
+        const data = await handleResponse<{ message: ApiMessage }>(response);
+        return data.message;
     }
 };

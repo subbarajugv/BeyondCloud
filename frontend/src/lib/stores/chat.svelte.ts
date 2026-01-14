@@ -514,7 +514,7 @@ class ChatStore {
 						modelPersisted = true;
 					}
 
-					await DatabaseStore.updateMessage(assistantMessage.id, updateData);
+					await DatabaseStore.updateMessage(assistantMessage.id, { ...updateData, convId: assistantMessage.convId });
 
 					const messageIndex = this.findMessageIndex(assistantMessage.id);
 

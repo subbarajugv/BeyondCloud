@@ -43,14 +43,17 @@ function apiConvToDb(apiConv: ApiConversation): DatabaseConversation {
  * Convert API message to database format
  */
 function apiMsgToDb(apiMsg: ApiMessage, convId: string): DatabaseMessage {
+	// Detect root message: system role with no parent
+	const isRootMessage = apiMsg.role === 'system' && !apiMsg.parent_id;
+
 	return {
 		id: apiMsg.id,
 		convId,
-		type: 'text',
+		type: isRootMessage ? 'root' : 'text',
 		timestamp: new Date(apiMsg.created_at).getTime(),
 		role: apiMsg.role as ChatRole,
 		content: apiMsg.content,
-		parent: apiMsg.parent_id || '',
+		parent: apiMsg.parent_id || null,
 		thinking: apiMsg.reasoning_content || '',
 		toolCalls: '',
 		children: [], // Will be computed from parent relationships
@@ -411,10 +414,22 @@ export class DatabaseStore {
 	 */
 	static async updateMessage(
 		id: string,
-		updates: Partial<Omit<DatabaseMessage, 'id'>>
+		updates: Partial<Omit<DatabaseMessage, 'id'>> & { convId?: string }
 	): Promise<void> {
-		// For now, only update in IndexedDB
-		// API message updates not yet implemented
+		if (useApiStorage() && updates.convId) {
+			try {
+				await conversationsApi.updateMessage(updates.convId, id, {
+					content: updates.content,
+					reasoning_content: updates.thinking,
+					model: updates.model || undefined
+				});
+			} catch (error) {
+				console.error('API updateMessage failed:', error);
+				// Still update IndexedDB as fallback for local state
+			}
+		}
+
+		// Also update IndexedDB for local state consistency
 		await db.messages.update(id, updates);
 	}
 

@@ -243,7 +243,7 @@ router.post('/:id/messages', async (req: AuthenticatedRequest, res: Response) =>
     const { id } = req.params;
     const { role, content, model, provider, reasoning_content, parent_id } = req.body;
 
-    if (!role || !content) {
+    if (!role || content === undefined || content === null) {
         return res.status(400).json({
             error: { code: 'VALIDATION_ERROR', message: 'Role and content are required' },
         });
@@ -296,6 +296,81 @@ router.post('/:id/messages', async (req: AuthenticatedRequest, res: Response) =>
         });
     } finally {
         client.release();
+    }
+});
+
+/**
+ * PUT /api/conversations/:convId/messages/:msgId
+ * Update a message's content (used after streaming completes)
+ */
+router.put('/:convId/messages/:msgId', async (req: AuthenticatedRequest, res: Response) => {
+    if (!req.user) {
+        return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } });
+    }
+
+    const { convId, msgId } = req.params;
+    const { content, reasoning_content, model } = req.body;
+
+    try {
+        // Verify conversation ownership
+        const convResult = await query(
+            `SELECT id FROM conversations WHERE id = $1 AND user_id = $2`,
+            [convId, req.user.id]
+        );
+
+        if (convResult.length === 0) {
+            return res.status(404).json({
+                error: { code: 'NOT_FOUND', message: 'Conversation not found' },
+            });
+        }
+
+        // Build update query dynamically
+        const updates: string[] = [];
+        const values: any[] = [];
+        let paramIndex = 1;
+
+        if (content !== undefined) {
+            updates.push(`content = $${paramIndex++}`);
+            values.push(content);
+        }
+        if (reasoning_content !== undefined) {
+            updates.push(`reasoning_content = $${paramIndex++}`);
+            values.push(reasoning_content);
+        }
+        if (model !== undefined) {
+            updates.push(`model = $${paramIndex++}`);
+            values.push(model);
+        }
+
+        if (updates.length === 0) {
+            return res.status(400).json({
+                error: { code: 'VALIDATION_ERROR', message: 'No fields to update' },
+            });
+        }
+
+        values.push(msgId);
+        values.push(convId);
+
+        const result = await query<Message>(
+            `UPDATE messages
+             SET ${updates.join(', ')}
+             WHERE id = $${paramIndex++} AND conversation_id = $${paramIndex}
+             RETURNING id, parent_id, role, content, model, provider, reasoning_content, created_at`,
+            values
+        );
+
+        if (result.length === 0) {
+            return res.status(404).json({
+                error: { code: 'NOT_FOUND', message: 'Message not found' },
+            });
+        }
+
+        res.json({ message: result[0] });
+    } catch (error) {
+        console.error('Error updating message:', error);
+        res.status(500).json({
+            error: { code: 'SERVER_ERROR', message: 'Failed to update message' },
+        });
     }
 });
 

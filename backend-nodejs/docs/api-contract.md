@@ -312,6 +312,40 @@ This document defines the complete API contract between frontend and backend. On
 
 ---
 
+### PUT /conversations/:convId/messages/:msgId
+
+Updates a message's content (used after streaming completes).
+
+**Headers:** `Authorization: Bearer <accessToken>`
+
+**Request:**
+```json
+{
+  "content": "Updated message content",
+  "reasoning_content": "Optional reasoning/thinking content",
+  "model": "gemma3:12b"
+}
+```
+
+**Response (200):**
+```json
+{
+  "message": {
+    "id": "uuid",
+    "parent_id": "uuid",
+    "role": "assistant",
+    "content": "Updated message content",
+    "model": "gemma3:12b",
+    "reasoning_content": "Optional reasoning content",
+    "created_at": "2025-01-11T10:00:00Z"
+  }
+}
+```
+
+**Errors:** `400` (no fields to update), `404` (conversation/message not found)
+
+---
+
 ## Chat Completion Endpoint
 
 ### POST /chat/completions
