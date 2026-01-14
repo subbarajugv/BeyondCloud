@@ -146,22 +146,18 @@ export class DatabaseStore {
 		parentId: string | null
 	): Promise<DatabaseMessage> {
 		if (useApiStorage()) {
-			try {
-				const apiMsg = await conversationsApi.addMessage(message.convId, {
-					role: message.role,
-					content: message.content,
-					parent_id: parentId,
-					model: message.model,
-					reasoning_content: message.thinking
-				});
+			const apiMsg = await conversationsApi.addMessage(message.convId, {
+				role: message.role,
+				content: message.content,
+				parent_id: parentId,
+				model: message.model,
+				reasoning_content: message.thinking
+			});
 
-				// Also update current_node
-				await conversationsApi.update(message.convId, { current_node: apiMsg.id });
+			// Also update current_node
+			await conversationsApi.update(message.convId, { current_node: apiMsg.id });
 
-				return apiMsgToDb(apiMsg, message.convId);
-			} catch (error) {
-				console.error('API createMessageBranch failed, falling back to IndexedDB:', error);
-			}
+			return apiMsgToDb(apiMsg, message.convId);
 		}
 
 		return await db.transaction('rw', [db.conversations, db.messages], async () => {

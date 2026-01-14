@@ -241,7 +241,7 @@ router.post('/:id/messages', async (req: AuthenticatedRequest, res: Response) =>
     }
 
     const { id } = req.params;
-    const { role, content, model, provider, reasoningContent, parentId } = req.body;
+    const { role, content, model, provider, reasoning_content, parent_id } = req.body;
 
     if (!role || !content) {
         return res.status(400).json({
@@ -272,7 +272,7 @@ router.post('/:id/messages', async (req: AuthenticatedRequest, res: Response) =>
             `INSERT INTO messages (conversation_id, role, content, model, provider, reasoning_content, parent_id)
              VALUES ($1, $2, $3, $4, $5, $6, $7)
              RETURNING id, parent_id, role, content, model, provider, reasoning_content, created_at`,
-            [id, role, content, model || null, provider || null, reasoningContent || null, parentId || null]
+            [id, role, content, model || null, provider || null, reasoning_content || null, parent_id || null]
         );
 
         const newMessage = messages.rows[0];
