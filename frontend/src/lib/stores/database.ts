@@ -199,6 +199,15 @@ export class DatabaseStore {
 	 * Creates a root message for a new conversation.
 	 */
 	static async createRootMessage(convId: string): Promise<string> {
+		if (useApiStorage()) {
+			const apiMsg = await conversationsApi.addMessage(convId, {
+				role: 'system',
+				content: '',
+				parent_id: null
+			});
+			return apiMsg.id;
+		}
+
 		const rootMessage: DatabaseMessage = {
 			id: uuid(),
 			convId,
@@ -211,19 +220,6 @@ export class DatabaseStore {
 			toolCalls: '',
 			children: []
 		};
-
-		if (useApiStorage()) {
-			try {
-				const apiMsg = await conversationsApi.addMessage(convId, {
-					role: 'system',
-					content: '',
-					parent_id: null
-				});
-				return apiMsg.id;
-			} catch (error) {
-				console.error('API createRootMessage failed, falling back to IndexedDB:', error);
-			}
-		}
 
 		await db.messages.add(rootMessage);
 		return rootMessage.id;
