@@ -15,6 +15,7 @@ interface Message {
     model: string | null;
     provider: string | null;
     reasoning_content: string | null;
+    extra: unknown[] | null;  // Attachments (images, audio, files)
     created_at: Date;
     children?: string[]; // Populated in application layer if needed, or by client
 }
@@ -119,7 +120,7 @@ router.get('/:id', async (req: AuthenticatedRequest, res: Response) => {
 
         // Get messages
         const messages = await query<Message>(
-            `SELECT id, parent_id, role, content, model, provider, reasoning_content, created_at
+            `SELECT id, parent_id, role, content, model, provider, reasoning_content, extra, created_at
              FROM messages
              WHERE conversation_id = $1
              ORDER BY created_at ASC`,
@@ -241,7 +242,7 @@ router.post('/:id/messages', async (req: AuthenticatedRequest, res: Response) =>
     }
 
     const { id } = req.params;
-    const { role, content, model, provider, reasoning_content, parent_id } = req.body;
+    const { role, content, model, provider, reasoning_content, parent_id, extra } = req.body;
 
     if (!role || content === undefined || content === null) {
         return res.status(400).json({
@@ -267,12 +268,12 @@ router.post('/:id/messages', async (req: AuthenticatedRequest, res: Response) =>
             });
         }
 
-        // Insert message
+        // Insert message with extra (attachments)
         const messages = await client.query<Message>(
-            `INSERT INTO messages (conversation_id, role, content, model, provider, reasoning_content, parent_id)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)
-             RETURNING id, parent_id, role, content, model, provider, reasoning_content, created_at`,
-            [id, role, content, model || null, provider || null, reasoning_content || null, parent_id || null]
+            `INSERT INTO messages (conversation_id, role, content, model, provider, reasoning_content, parent_id, extra)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+             RETURNING id, parent_id, role, content, model, provider, reasoning_content, extra, created_at`,
+            [id, role, content, model || null, provider || null, reasoning_content || null, parent_id || null, extra ? JSON.stringify(extra) : null]
         );
 
         const newMessage = messages.rows[0];

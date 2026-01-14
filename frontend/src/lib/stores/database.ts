@@ -42,7 +42,7 @@ function apiConvToDb(apiConv: ApiConversation): DatabaseConversation {
 /**
  * Convert API message to database format
  */
-function apiMsgToDb(apiMsg: ApiMessage, convId: string): DatabaseMessage {
+function apiMsgToDb(apiMsg: ApiMessage, convId: string): DatabaseMessage & { extra?: DatabaseMessageExtra[] } {
 	// Detect root message: system role with no parent
 	const isRootMessage = apiMsg.role === 'system' && !apiMsg.parent_id;
 
@@ -57,7 +57,8 @@ function apiMsgToDb(apiMsg: ApiMessage, convId: string): DatabaseMessage {
 		thinking: apiMsg.reasoning_content || '',
 		toolCalls: '',
 		children: [], // Will be computed from parent relationships
-		model: apiMsg.model || undefined
+		model: apiMsg.model || undefined,
+		extra: apiMsg.extra as DatabaseMessageExtra[] | undefined  // Include attachments from API
 	};
 }
 
@@ -90,10 +91,10 @@ function buildChildrenArrays(messages: DatabaseMessage[]): DatabaseMessage[] {
  */
 export class DatabaseStore {
 	/**
-	 * Adds a new message to the database.
-	 */
-	static async addMessage(message: Omit<DatabaseMessage, 'id'>): Promise<DatabaseMessage> {
-		const newMessage: DatabaseMessage = {
+ * Adds a new message to the database.
+ */
+	static async addMessage(message: Omit<DatabaseMessage, 'id'> & { extra?: DatabaseMessageExtra[] }): Promise<DatabaseMessage & { extra?: DatabaseMessageExtra[] }> {
+		const newMessage: DatabaseMessage & { extra?: DatabaseMessageExtra[] } = {
 			...message,
 			id: uuid()
 		};
@@ -105,7 +106,8 @@ export class DatabaseStore {
 					content: message.content,
 					parent_id: message.parent || null,
 					model: message.model,
-					reasoning_content: message.thinking
+					reasoning_content: message.thinking,
+					extra: message.extra  // Include attachments (images, audio, files)
 				});
 				return apiMsgToDb(apiMsg, message.convId);
 			} catch (error) {
@@ -116,7 +118,6 @@ export class DatabaseStore {
 		await db.messages.add(newMessage);
 		return newMessage;
 	}
-
 	/**
 	 * Creates a new conversation.
 	 */

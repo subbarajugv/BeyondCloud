@@ -70,6 +70,7 @@ export interface ApiMessage {
     model: string | null;
     provider: string | null;
     reasoning_content: string | null;
+    extra: unknown[] | null;  // Attachments (images, audio, files)
     created_at: string;
 }
 
@@ -171,6 +172,7 @@ export const conversationsApi = {
             model?: string;
             provider?: string;
             reasoning_content?: string;
+            extra?: unknown[];  // Attachments (images, audio, files)
         }
     ): Promise<ApiMessage> {
         const response = await fetch(`${API_BASE}/conversations/${conversationId}/messages`, {

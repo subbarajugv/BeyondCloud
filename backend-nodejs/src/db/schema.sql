@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS messages (
     provider VARCHAR(50),
     tokens_used INTEGER,
     reasoning_content TEXT,
+    extra JSONB,  -- Stores attachments (images, audio, files) as array
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
