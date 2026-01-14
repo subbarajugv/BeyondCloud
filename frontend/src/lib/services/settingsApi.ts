@@ -3,12 +3,12 @@
  * Syncs user settings with the backend API when authenticated
  */
 
-import { authStore } from '$lib/stores/auth.svelte';
+import { getAccessToken } from '$lib/services/api';
 
 const API_BASE = '/api';
 
 function getAuthHeaders(): HeadersInit {
-    const token = authStore.token;
+    const token = getAccessToken();
     return {
         'Content-Type': 'application/json',
         ...(token ? { 'Authorization': `Bearer ${token}` } : {})
