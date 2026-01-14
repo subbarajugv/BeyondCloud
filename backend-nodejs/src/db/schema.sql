@@ -78,3 +78,18 @@ CREATE TRIGGER update_conversations_updated_at
     BEFORE UPDATE ON conversations
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
+
+-- User Settings table (JSONB for flexible settings storage)
+CREATE TABLE IF NOT EXISTS user_settings (
+    user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    settings JSONB NOT NULL DEFAULT '{}',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Trigger for user_settings updated_at
+DROP TRIGGER IF EXISTS update_user_settings_updated_at ON user_settings;
+CREATE TRIGGER update_user_settings_updated_at
+    BEFORE UPDATE ON user_settings
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
