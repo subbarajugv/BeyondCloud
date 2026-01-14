@@ -5,22 +5,37 @@
 
 import { browser } from '$app/environment';
 import { MimeTypeApplication, MimeTypeImage } from '$lib/enums/files';
-import * as pdfjs from 'pdfjs-dist';
+
+// Dynamic import to avoid SSR issues - pdfjs-dist requires browser APIs like DOMMatrix
+type PdfJsType = typeof import('pdfjs-dist');
+let pdfjs: PdfJsType | null = null;
 
 type TextContent = {
 	items: Array<{ str: string }>;
 };
 
-if (browser) {
+async function getPdfJs(): Promise<PdfJsType> {
+	if (!browser) {
+		throw new Error('PDF processing is only available in the browser');
+	}
+
+	if (pdfjs) {
+		return pdfjs;
+	}
+
+	// Dynamic import to avoid SSR issues
+	pdfjs = await import('pdfjs-dist');
+
 	// Import worker as text and create blob URL for inline bundling
-	import('pdfjs-dist/build/pdf.worker.min.mjs?raw')
-		.then((workerModule) => {
-			const workerBlob = new Blob([workerModule.default], { type: 'application/javascript' });
-			pdfjs.GlobalWorkerOptions.workerSrc = URL.createObjectURL(workerBlob);
-		})
-		.catch(() => {
-			console.warn('Failed to load PDF.js worker, PDF processing may not work');
-		});
+	try {
+		const workerModule = await import('pdfjs-dist/build/pdf.worker.min.mjs?raw');
+		const workerBlob = new Blob([workerModule.default], { type: 'application/javascript' });
+		pdfjs.GlobalWorkerOptions.workerSrc = URL.createObjectURL(workerBlob);
+	} catch {
+		console.warn('Failed to load PDF.js worker, PDF processing may not work');
+	}
+
+	return pdfjs;
 }
 
 /**
@@ -51,13 +66,11 @@ async function getFileAsBuffer(file: File): Promise<ArrayBuffer> {
  * @returns Promise resolving to the extracted text content
  */
 export async function convertPDFToText(file: File): Promise<string> {
-	if (!browser) {
-		throw new Error('PDF processing is only available in the browser');
-	}
+	const pdfjsLib = await getPdfJs();
 
 	try {
 		const buffer = await getFileAsBuffer(file);
-		const pdf = await pdfjs.getDocument(buffer).promise;
+		const pdf = await pdfjsLib.getDocument(buffer).promise;
 		const numPages = pdf.numPages;
 
 		const textContentPromises: Promise<TextContent>[] = [];
@@ -88,13 +101,11 @@ export async function convertPDFToText(file: File): Promise<string> {
  * @returns Promise resolving to array of PNG data URLs
  */
 export async function convertPDFToImage(file: File, scale: number = 1.5): Promise<string[]> {
-	if (!browser) {
-		throw new Error('PDF processing is only available in the browser');
-	}
+	const pdfjsLib = await getPdfJs();
 
 	try {
 		const buffer = await getFileAsBuffer(file);
-		const doc = await pdfjs.getDocument(buffer).promise;
+		const doc = await pdfjsLib.getDocument(buffer).promise;
 		const pages: Promise<string>[] = [];
 
 		for (let i = 1; i <= doc.numPages; i++) {
