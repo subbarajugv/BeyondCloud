@@ -28,8 +28,8 @@ app.use(cors({
 // Compression
 app.use(compression());
 
-// JSON body parser
-app.use(express.json());
+// JSON body parser with increased limit for image attachments
+app.use(express.json({ limit: '50mb' }));
 
 // =============================================================================
 // Routes
