@@ -155,7 +155,8 @@ export class DatabaseStore {
 				content: message.content,
 				parent_id: parentId,
 				model: message.model,
-				reasoning_content: message.thinking
+				reasoning_content: message.thinking,
+				extra: (message as { extra?: DatabaseMessageExtra[] }).extra  // Include attachments
 			});
 
 			// Also update current_node
