@@ -33,9 +33,19 @@ export function setAccessToken(token: string | null): void {
 
 /**
  * Get the current access token
+ * Falls back to localStorage if in-memory token not yet set (race condition fix)
  */
 export function getAccessToken(): string | null {
-    return accessToken;
+    if (accessToken) return accessToken;
+    // Fallback to localStorage during early initialization
+    if (typeof window !== 'undefined') {
+        const storedToken = localStorage.getItem('auth_token');
+        if (storedToken) {
+            accessToken = storedToken; // Cache it in memory
+            return storedToken;
+        }
+    }
+    return null;
 }
 
 interface ApiError {
