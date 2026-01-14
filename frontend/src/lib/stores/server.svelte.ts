@@ -118,11 +118,15 @@ class ServerStore {
 	}
 
 	get supportsVision(): boolean {
-		return this._serverProps?.modalities?.vision ?? false;
+		if (this._serverProps?.modalities?.vision) return true;
+		const currentConfig = config();
+		return Boolean(currentConfig.forceVisionSupport);
 	}
 
 	get supportsAudio(): boolean {
-		return this._serverProps?.modalities?.audio ?? false;
+		if (this._serverProps?.modalities?.audio) return true;
+		const currentConfig = config();
+		return Boolean(currentConfig.forceAudioSupport);
 	}
 
 	get slotsEndpointAvailable(): boolean | null {

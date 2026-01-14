@@ -72,6 +72,16 @@
 					key: 'askForTitleConfirmation',
 					label: 'Ask for confirmation before changing conversation title',
 					type: 'checkbox'
+				},
+				{
+					key: 'forceVisionSupport',
+					label: 'Enable image attachments (Force Vision)',
+					type: 'checkbox'
+				},
+				{
+					key: 'forceAudioSupport',
+					label: 'Enable audio attachments (Force Audio)',
+					type: 'checkbox'
 				}
 			]
 		},

@@ -40,7 +40,10 @@ export const SETTING_CONFIG_DEFAULT: Record<string, string | number | boolean> =
 	custom: '', // custom json-stringified object
 	// experimental features
 	pyInterpreterEnabled: false,
-	enableContinueGeneration: false
+	enableContinueGeneration: false,
+	// multimodal support overrides
+	forceVisionSupport: false,
+	forceAudioSupport: false
 };
 
 export const SETTING_CONFIG_INFO: Record<string, string> = {
@@ -102,5 +105,9 @@ export const SETTING_CONFIG_INFO: Record<string, string> = {
 	pyInterpreterEnabled:
 		'Enable Python interpreter using Pyodide. Allows running Python code in markdown code blocks.',
 	enableContinueGeneration:
-		'Enable "Continue" button for assistant messages. Currently works only with non-reasoning models.'
+		'Enable "Continue" button for assistant messages. Currently works only with non-reasoning models.',
+	forceVisionSupport:
+		'Enable image attachments even if the server doesn\'t report vision capability. Use for multimodal models like Gemma 3.',
+	forceAudioSupport:
+		'Enable audio attachments even if the server doesn\'t report audio capability.'
 };
