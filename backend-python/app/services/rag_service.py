@@ -2,6 +2,7 @@
 RAG Service - Document ingestion, embedding, and retrieval
 """
 import uuid
+import json
 from typing import List, Optional, Dict, Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -92,7 +93,7 @@ class RAGService:
                     "name": name,
                     "type": "text",
                     "file_size": len(content),
-                    "metadata": metadata or {},
+                    "metadata": json.dumps(metadata or {}),
                 }
             )
             
@@ -113,7 +114,7 @@ class RAGService:
                 await db.execute(
                     text("""
                         INSERT INTO rag_chunks (id, source_id, content, embedding, chunk_index, metadata)
-                        VALUES (:id, :source_id, :content, :embedding::vector, :chunk_index, :metadata)
+                        VALUES (:id, :source_id, :content, CAST(:embedding AS vector), :chunk_index, :metadata)
                     """),
                     {
                         "id": str(uuid.uuid4()),
@@ -121,7 +122,7 @@ class RAGService:
                         "content": chunk,
                         "embedding": embedding_str,
                         "chunk_index": i,
-                        "metadata": {"position": i},
+                        "metadata": json.dumps({"position": i}),
                     }
                 )
             
@@ -180,13 +181,13 @@ class RAGService:
                         c.content,
                         c.metadata,
                         s.name as source_name,
-                        1 - (c.embedding <=> :embedding::vector) as score
+                        1 - (c.embedding <=> CAST(:embedding AS vector)) as score
                     FROM rag_chunks c
                     JOIN rag_sources s ON c.source_id = s.id
                     WHERE s.user_id = :user_id
                     {source_filter}
-                    AND 1 - (c.embedding <=> :embedding::vector) >= :min_score
-                    ORDER BY c.embedding <=> :embedding::vector
+                    AND 1 - (c.embedding <=> CAST(:embedding AS vector)) >= :min_score
+                    ORDER BY c.embedding <=> CAST(:embedding AS vector)
                     LIMIT :limit
                 """),
                 params
@@ -207,6 +208,91 @@ class RAGService:
             
             span.set_attribute("result_count", len(chunks))
             return chunks
+    
+    async def hybrid_retrieve(
+        self,
+        db: AsyncSession,
+        user_id: str,
+        query: str,
+        top_k: int = 5,
+        min_score: float = 0.3,
+        source_ids: Optional[List[str]] = None,
+        use_reranking: bool = True,
+        use_hybrid: bool = True,
+        bm25_weight: float = 0.3,
+    ) -> List[Dict[str, Any]]:
+        """
+        Advanced retrieval with hybrid search and reranking
+        
+        Combines:
+        1. Vector search (pgvector or FAISS)
+        2. BM25 keyword search
+        3. Reciprocal Rank Fusion
+        4. Cross-encoder reranking
+        
+        Args:
+            db: Database session
+            user_id: User ID
+            query: Search query
+            top_k: Final number of results
+            min_score: Minimum score threshold
+            source_ids: Filter by sources
+            use_reranking: Apply cross-encoder reranking
+            use_hybrid: Use BM25+vector hybrid search
+            bm25_weight: Weight for BM25 in hybrid (0-1)
+        """
+        async with create_span("rag.hybrid_retrieve", {"query": query, "top_k": top_k}) as span:
+            # Step 1: Get more candidates than needed for reranking
+            candidate_k = top_k * 3 if use_reranking else top_k
+            
+            # Get vector results from pgvector
+            vector_results = await self.retrieve(
+                db=db,
+                user_id=user_id,
+                query=query,
+                top_k=candidate_k,
+                min_score=min_score * 0.5,  # Lower threshold for candidates
+                source_ids=source_ids,
+            )
+            span.set_attribute("vector_results", len(vector_results))
+            
+            results = vector_results
+            
+            # Step 2: Hybrid search with BM25
+            if use_hybrid and vector_results:
+                from app.services.hybrid_search_service import hybrid_search_service
+                
+                # Build BM25 index from vector results (or cache would be better)
+                await hybrid_search_service.build_index(user_id, vector_results)
+                
+                results = await hybrid_search_service.hybrid_search(
+                    user_id=user_id,
+                    query=query,
+                    vector_results=vector_results,
+                    bm25_weight=bm25_weight,
+                    top_k=candidate_k,
+                )
+                span.set_attribute("hybrid_results", len(results))
+            
+            # Step 3: Reranking
+            if use_reranking and results:
+                from app.services.reranking_service import reranking_service
+                
+                results = await reranking_service.rerank(
+                    query=query,
+                    chunks=results,
+                    top_k=top_k,
+                )
+                span.set_attribute("reranked_results", len(results))
+            
+            # Step 4: Apply final score threshold and top_k
+            final_results = [
+                r for r in results[:top_k]
+                if r.get("score", 0) >= min_score or r.get("rerank_score", 0) >= min_score
+            ]
+            
+            span.set_attribute("final_results", len(final_results))
+            return final_results
     
     async def list_sources(
         self,
@@ -243,7 +329,18 @@ class RAGService:
         user_id: str,
         source_id: str,
     ) -> bool:
-        """Delete a source and all its chunks"""
+        """Delete a source and all its chunks, including from search indices"""
+        # Clean up from in-memory indices
+        try:
+            from app.services.faiss_service import faiss_service
+            from app.services.hybrid_search_service import hybrid_search_service
+            
+            await faiss_service.remove_source(user_id, source_id)
+            await hybrid_search_service.remove_source(user_id, source_id)
+        except Exception:
+            pass  # Indices may not exist
+        
+        # Delete from database
         result = await db.execute(
             text("""
                 DELETE FROM rag_sources
@@ -258,3 +355,4 @@ class RAGService:
 
 # Singleton service instance
 rag_service = RAGService()
+

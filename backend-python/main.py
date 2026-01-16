@@ -10,6 +10,7 @@ from datetime import datetime
 from app.config import get_settings
 from app.routers import providers
 from app.routers import rag
+from app.routers import query
 from app.database import init_database
 
 settings = get_settings()
@@ -41,6 +42,11 @@ async def lifespan(app: FastAPI):
 ║   - POST /api/rag/retrieve                                ║
 ║   - POST /api/rag/query                                   ║
 ║   - DELETE /api/rag/sources/:id                           ║
+║                                                           ║
+║   Phase 4 - Query Preprocessing:                          ║
+║   - POST /api/query/process                               ║
+║   - POST /api/query/confirm                               ║
+║   - POST /api/query/process-and-retrieve                  ║
 ║                                                           ║
 ╚═══════════════════════════════════════════════════════════╝
     """)
@@ -90,6 +96,9 @@ app.include_router(providers.router, prefix="/api")
 
 # RAG routes (Phase 4)
 app.include_router(rag.router, prefix="/api")
+
+# Query preprocessing routes (Phase 4)
+app.include_router(query.router, prefix="/api")
 
 # Models endpoint (convenience alias)
 @app.get("/api/models")

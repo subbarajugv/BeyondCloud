@@ -139,6 +139,85 @@ class ProviderService:
         result = await self.test_provider(provider_id)
         return result.models if result.success and result.models else []
     
+    async def chat_completion(
+        self,
+        messages: List[Dict],
+        model: Optional[str] = None,
+        provider_id: Optional[str] = None,
+        temperature: float = 0.7,
+        max_tokens: int = 1024,
+        stream: bool = False,
+    ) -> Dict:
+        """
+        Send chat completion request to LLM provider
+        
+        Args:
+            messages: List of message dicts with 'role' and 'content'
+            model: Model ID to use (or provider default)
+            provider_id: Provider to use (or default from settings)
+            temperature: Sampling temperature
+            max_tokens: Maximum tokens to generate
+            stream: Whether to stream response (not implemented yet)
+            
+        Returns:
+            Dict with 'content' key containing the response text
+        """
+        # Get provider configuration
+        pid = provider_id or self.settings.default_llm_provider
+        runtime_config = self.provider_configs.get(pid)
+        defaults = DEFAULT_PROVIDERS.get(pid, {})
+        
+        if not runtime_config and not defaults:
+            raise ValueError(f"Unknown provider: {pid}")
+        
+        base_url = runtime_config.base_url if runtime_config else defaults.get("base_url")
+        api_key = runtime_config.api_key if runtime_config else None
+        
+        # Use first available model if not specified
+        model_id = model
+        if not model_id:
+            models = defaults.get("models", [])
+            model_id = models[0] if models else "default"
+        
+        headers = {"Content-Type": "application/json"}
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+        
+        payload = {
+            "model": model_id,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "stream": False,  # Non-streaming for now
+        }
+        
+        try:
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                response = await client.post(
+                    f"{base_url}/chat/completions",
+                    headers=headers,
+                    json=payload,
+                )
+                response.raise_for_status()
+                data = response.json()
+            
+            # Extract content from OpenAI-compatible response
+            if "choices" in data and len(data["choices"]) > 0:
+                choice = data["choices"][0]
+                content = choice.get("message", {}).get("content", "")
+                return {
+                    "content": content,
+                    "model": data.get("model", model_id),
+                    "usage": data.get("usage", {}),
+                }
+            else:
+                return {"content": "", "error": "No response from model"}
+                
+        except httpx.HTTPStatusError as e:
+            return {"content": "", "error": f"HTTP error: {e.response.status_code}"}
+        except Exception as e:
+            return {"content": "", "error": str(e)}
+    
     def update_provider(self, provider_id: str, **updates) -> None:
         """Update provider configuration"""
         existing = self.provider_configs.get(provider_id)

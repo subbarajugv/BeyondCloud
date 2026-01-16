@@ -518,6 +518,259 @@ data: [DONE]
 
 ---
 
+## Query Service Endpoints (Python AI Service)
+
+> **Base URL**: Python AI service (default port 8001)
+
+### POST /query/process
+
+Process a query with spelling correction and LLM rewriting.
+
+**Request:**
+```json
+{
+  "query": "how does teh auth wrk?",
+  "context": "optional conversation context",
+  "auto_confirm": false,
+  "enable_rewrite": true,
+  "enable_spell_check": true
+}
+```
+
+**Response (200):**
+```json
+{
+  "original_query": "how does teh auth wrk?",
+  "processed_query": "How does the authentication system work, including login and session management?",
+  "status": "pending_review",
+  "corrections": [
+    {"original": "teh", "corrected": "the", "type": "spelling"},
+    {"original": "wrk", "corrected": "work", "type": "spelling"},
+    {"type": "rewrite", "reason": "LLM optimization"}
+  ],
+  "confidence": 0.85,
+  "requires_confirmation": true,
+  "message": "Query was modified. Please review the changes."
+}
+```
+
+**Status Values:**
+- `ready` - Query ready for retrieval
+- `pending_review` - Awaiting human confirmation
+- `modified` - Query was modified (auto-confirmed)
+- `original` - No changes made
+
+---
+
+### POST /query/confirm
+
+Confirm or modify a pending query.
+
+**Request:**
+```json
+{
+  "query_id": "uuid",
+  "confirmed": true,
+  "modified_query": null
+}
+```
+
+**Response (200):**
+```json
+{
+  "query": "How does the authentication system work?",
+  "status": "ready",
+  "message": "Query changes confirmed."
+}
+```
+
+---
+
+### POST /query/process-and-retrieve
+
+Combined workflow: process query and retrieve in one call.
+
+**Request:**
+```json
+{
+  "query": "how does auth work?",
+  "auto_confirm": true,
+  "top_k": 5,
+  "min_score": 0.5
+}
+```
+
+**Response (200):**
+```json
+{
+  "status": "completed",
+  "original_query": "how does auth work?",
+  "processed_query": "How does the authentication system work?",
+  "corrections": [...],
+  "chunks": [
+    {
+      "id": "uuid",
+      "source_id": "uuid",
+      "source_name": "auth-docs.md",
+      "content": "...",
+      "score": 0.89
+    }
+  ]
+}
+```
+
+---
+
+## RAG Endpoints (Python AI Service)
+
+### GET /rag/sources
+
+List all document sources for the current user.
+
+**Response (200):**
+```json
+{
+  "sources": [
+    {
+      "id": "uuid",
+      "name": "documentation.pdf",
+      "type": "file",
+      "file_size": 102400,
+      "chunk_count": 45,
+      "created_at": "2026-01-17T00:00:00Z"
+    }
+  ]
+}
+```
+
+---
+
+### POST /rag/ingest
+
+Ingest text content into the RAG system.
+
+**Request:**
+```json
+{
+  "name": "my-document",
+  "content": "Document text content...",
+  "chunk_size": 500,
+  "chunk_overlap": 50,
+  "metadata": {}
+}
+```
+
+**Response (201):**
+```json
+{
+  "source_id": "uuid",
+  "name": "my-document",
+  "chunk_count": 12,
+  "message": "Successfully ingested 12 chunks"
+}
+```
+
+---
+
+### POST /rag/ingest/file
+
+Upload and ingest a document file.
+
+**Request:** `multipart/form-data`
+- `file`: File (`.txt`, `.md`, `.pdf`, `.docx`, `.html`)
+- `chunk_size`: int (default 500)
+- `chunk_overlap`: int (default 50)
+
+**Response (201):**
+```json
+{
+  "source_id": "uuid",
+  "name": "document.pdf",
+  "chunk_count": 45,
+  "message": "Successfully ingested 45 chunks from document.pdf"
+}
+```
+
+---
+
+### POST /rag/retrieve
+
+Vector similarity search - retrieve relevant chunks.
+
+**Request:**
+```json
+{
+  "query": "How does authentication work?",
+  "top_k": 5,
+  "min_score": 0.5,
+  "source_ids": ["uuid1", "uuid2"]
+}
+```
+
+**Response (200):**
+```json
+[
+  {
+    "id": "uuid",
+    "source_id": "uuid",
+    "content": "Authentication is handled via JWT tokens...",
+    "score": 0.92,
+    "metadata": {"source_name": "auth-docs.md"}
+  }
+]
+```
+
+---
+
+### POST /rag/query
+
+RAG query with optional LLM answer generation.
+
+**Request:**
+```json
+{
+  "query": "How does authentication work?",
+  "top_k": 5,
+  "min_score": 0.5,
+  "include_sources": true,
+  "generate": true
+}
+```
+
+**Response (200):**
+```json
+{
+  "query": "How does authentication work?",
+  "answer": "Based on the documentation, authentication is handled via JWT tokens. When a user logs in, the system generates an access token (15 min) and refresh token (7 days)...",
+  "citations": [
+    {
+      "source_id": "uuid",
+      "source_name": "auth-docs.md",
+      "score": 0.92,
+      "content_preview": "Authentication is handled via JWT..."
+    }
+  ],
+  "model": "default",
+  "chunks": [...],
+  "error": null
+}
+```
+
+---
+
+### DELETE /rag/sources/:id
+
+Delete a document source and all its chunks.
+
+**Response (200):**
+```json
+{
+  "message": "Source deleted successfully"
+}
+```
+
+---
+
 ## Error Response Format
 
 All errors follow this format:
@@ -591,5 +844,232 @@ interface Settings {
   activeProvider: string;
   providers: Record<string, ProviderSettings>;
   chatOptions: ChatOptions;
+}
+```
+
+---
+
+## RAG Endpoints (Python AI Service - Port 8001)
+
+### POST /api/rag/ingest
+
+Ingest text content into the RAG system.
+
+**Request:**
+```json
+{
+  "name": "company-policy",
+  "content": "Your document text here...",
+  "chunk_size": 500,
+  "chunk_overlap": 50,
+  "metadata": {"category": "policy"}
+}
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| name | string | required | Document name |
+| content | string | required | Text content |
+| chunk_size | int | 500 | Characters per chunk |
+| chunk_overlap | int | 50 | Overlap between chunks |
+| metadata | object | {} | Custom metadata |
+
+**Response (200):**
+```json
+{
+  "source_id": "uuid",
+  "name": "company-policy",
+  "chunk_count": 12,
+  "message": "Successfully ingested 12 chunks"
+}
+```
+
+---
+
+### POST /api/rag/ingest/file
+
+Upload and ingest a file.
+
+**Request:** `multipart/form-data`
+- `file`: The file to upload (.txt, .md, .pdf, .docx, .html)
+- `chunk_size`: Optional, default 500
+- `chunk_overlap`: Optional, default 50
+
+**Response (200):** Same as `/ingest`
+
+**Supported File Types:** `.txt`, `.md`, `.pdf`, `.docx`, `.html`, `.htm`
+
+---
+
+### POST /api/rag/query
+
+Search documents and optionally generate an answer.
+
+**Request:**
+```json
+{
+  "query": "What is the refund policy?",
+  "top_k": 5,
+  "min_score": 0.5,
+  "use_hybrid": true,
+  "use_reranking": true,
+  "generate": true
+}
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| query | string | required | Your question |
+| top_k | int | 5 | Number of chunks to retrieve |
+| min_score | float | 0.5 | Minimum relevance (0-1) |
+| use_hybrid | bool | true | BM25 + vector search |
+| use_reranking | bool | true | Cross-encoder reranking |
+| generate | bool | true | Generate AI answer |
+
+**Response (200):**
+```json
+{
+  "query": "What is the refund policy?",
+  "chunks": [
+    {
+      "id": "uuid",
+      "source_id": "uuid",
+      "content": "Refunds are processed within 7 days...",
+      "score": 0.85,
+      "metadata": {"source_name": "policy.pdf"}
+    }
+  ],
+  "answer": "The refund policy states that...",
+  "citations": [
+    {"source_id": "uuid", "source_name": "policy.pdf", "score": 0.85}
+  ],
+  "search_mode": "hybrid+rerank"
+}
+```
+
+---
+
+### POST /api/rag/retrieve
+
+Vector search only (no answer generation).
+
+**Request:**
+```json
+{
+  "query": "authentication",
+  "top_k": 5,
+  "min_score": 0.5,
+  "source_ids": ["uuid1", "uuid2"]
+}
+```
+
+**Response (200):** Array of chunks
+
+---
+
+### GET /api/rag/sources
+
+List all ingested documents for the current user.
+
+**Response (200):**
+```json
+[
+  {
+    "id": "uuid",
+    "name": "company-policy",
+    "type": "text",
+    "chunk_count": 12,
+    "created_at": "2025-01-17T00:00:00Z"
+  }
+]
+```
+
+---
+
+### DELETE /api/rag/sources/{source_id}
+
+Delete a document and all its chunks.
+
+**Response (200):**
+```json
+{"deleted": true}
+```
+
+---
+
+## Query Preprocessing Endpoints
+
+### POST /api/query/process
+
+Preprocess a query (spelling correction, rewriting).
+
+**Request:**
+```json
+{"query": "wat is autentication?"}
+```
+
+**Response (200):**
+```json
+{
+  "original_query": "wat is autentication?",
+  "processed_query": "What is authentication?",
+  "corrections": [
+    {"original": "wat", "corrected": "what"},
+    {"original": "autentication", "corrected": "authentication"}
+  ],
+  "requires_confirmation": true,
+  "session_id": "uuid"
+}
+```
+
+### POST /api/query/confirm
+
+Confirm or modify a processed query.
+
+**Request:**
+```json
+{
+  "session_id": "uuid",
+  "confirmed_query": "What is authentication?",
+  "user_accepted": true
+}
+```
+
+---
+
+## RAG TypeScript Interfaces
+
+```typescript
+interface RAGSource {
+  id: string;
+  name: string;
+  type: 'text' | 'file';
+  chunkCount: number;
+  createdAt: string;
+}
+
+interface RAGChunk {
+  id: string;
+  sourceId: string;
+  content: string;
+  score: number;
+  metadata: Record<string, any>;
+}
+
+interface RAGQueryRequest {
+  query: string;
+  topK?: number;
+  minScore?: number;
+  useHybrid?: boolean;
+  useReranking?: boolean;
+  generate?: boolean;
+}
+
+interface RAGQueryResponse {
+  query: string;
+  chunks: RAGChunk[];
+  answer?: string;
+  citations?: Citation[];
+  searchMode: 'vector' | 'hybrid' | 'hybrid+rerank';
 }
 ```

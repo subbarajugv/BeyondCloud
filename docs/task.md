@@ -39,15 +39,22 @@
 - **Database**: Added `refresh_tokens` and `password_reset_tokens` tables.
 - **Frontend**: Fixed routing from hash-based (`#/chat`) to path-based (`/chat`).
 
-### 🚧 Phase 4: RAG & Tracing (In Progress - Infrastructure Ready)
+### ✅ Phase 4: RAG & Tracing (Complete)
 - **Python AI Service**: FastAPI microservice setup.
 - **Observability**: Custom OTel-compatible tracing system logging to PostgreSQL.
 - **RAG Engine**: 
   - `pgvector` integration for persistent embeddings.
-  - `FAISS` ready for fast similarity search.
-  - Ingestion pipeline for `.txt`, `.md`, `.pdf`, `.docx`.
-  - Retrieval service with similarity scoring.
+  - `FAISS` service for fast in-memory search.
+  - Ingestion pipeline for `.txt`, `.md`, `.pdf`, `.docx`, `.html`
+  - **Hybrid Search**: BM25 + vector with Reciprocal Rank Fusion
+  - **Reranking**: Cross-encoder (ms-marco-MiniLM) for precision
+  - **Answer Service**: LLM generation with context assembly + citations
+- **Query Service**:
+  - Spelling correction (pyspellchecker)
+  - LLM-based query rewriting
+  - Human-in-the-loop confirmation
 - **Environment**: Managed via `uv` in `.venv`.
+
 
 ## Phase Order (Updated)
 
@@ -57,9 +64,14 @@
 | 1 | Backend (Auth, DB, APIs) | ✅ Done |
 | 2 | Frontend (Auth UI) | ✅ Done |
 | 3 | Data Migration | ✅ Done (Hybrid) |
-| 4 | RAG & Tracing | 🚧 In Progress |
-| 5 | Agents & Memory | To Do |
+| 4 | RAG & Tracing | ✅ Done |
+| 5 | Agents & Memory | 🚧 Next |
 | 6 | Security & Production | To Do |
+
+### Phase 6 Planned (Security)
+- **RBAC**: Role-based access control (user, rag_user, agent_user, admin, owner)
+- Rate limiting, API key management
+- Production hardening
 
 ## Documentation
 - [implementation_plan.md](./implementation_plan.md) - AI Service & RAG Architecture

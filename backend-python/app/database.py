@@ -6,12 +6,11 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sess
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy import text
 from typing import AsyncGenerator
-import os
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL", 
-    "postgresql+asyncpg://subba:@localhost:5432/beyondcloud"
-)
+from app.config import get_settings
+
+settings = get_settings()
+DATABASE_URL = settings.database_url
 
 engine = create_async_engine(DATABASE_URL, echo=False)
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)

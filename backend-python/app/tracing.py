@@ -238,11 +238,22 @@ async def export_spans_to_db(db_session):
                  :duration_ns, :status_code, :status_message, :attributes, :events, :resource, :user_id)
             """),
             {
-                **span.to_dict(),
+                "trace_id": span.trace_id,
+                "span_id": span.span_id,
+                "parent_span_id": span.parent_span_id,
+                "name": span.name,
+                "kind": span.kind,
+                "start_time": span.start_time,  # Pass datetime object directly
+                "end_time": span.end_time,      # Pass datetime object directly
+                "duration_ns": span.duration_ns,
+                "status_code": span.status_code,
+                "status_message": span.status_message,
                 "attributes": json.dumps(span.attributes),
                 "events": json.dumps([{"name": e.name, "timestamp": e.timestamp.isoformat(), "attributes": e.attributes} for e in span.events]),
                 "resource": json.dumps(span.resource),
+                "user_id": span.user_id,
             }
         )
     
     await db_session.commit()
+

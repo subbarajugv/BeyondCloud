@@ -58,13 +58,31 @@ class QueryRequest(BaseModel):
     top_k: int = 5
     min_score: float = 0.5
     include_sources: bool = True
+    generate: bool = Field(default=True, description="Generate answer using LLM")
+    # Hybrid search options
+    use_hybrid: bool = Field(default=True, description="Use BM25+vector hybrid search")
+    use_reranking: bool = Field(default=True, description="Apply cross-encoder reranking")
+    bm25_weight: float = Field(default=0.3, ge=0, le=1, description="BM25 weight in hybrid search")
+
+
+class Citation(BaseModel):
+    """Source citation for answer"""
+    source_id: str
+    source_name: str
+    score: float
+    content_preview: str
 
 
 class QueryResponse(BaseModel):
     """RAG query response"""
     query: str
     chunks: List[ChunkResponse]
-    answer: Optional[str] = None  # Filled if generate=True
+    answer: Optional[str] = None
+    citations: List[Citation] = []
+    model: Optional[str] = None
+    error: Optional[str] = None
+    # Search metadata
+    search_mode: Optional[str] = None  # "vector", "hybrid", "hybrid+rerank"
 
 
 class RetrieveRequest(BaseModel):
@@ -73,3 +91,7 @@ class RetrieveRequest(BaseModel):
     top_k: int = 5
     min_score: float = 0.5
     source_ids: Optional[List[UUID]] = None  # Filter by sources
+    # Hybrid search options
+    use_hybrid: bool = Field(default=False, description="Use BM25+vector hybrid search")
+    use_reranking: bool = Field(default=False, description="Apply cross-encoder reranking")
+    bm25_weight: float = Field(default=0.3, ge=0, le=1, description="BM25 weight in hybrid search")
