@@ -105,7 +105,7 @@ class ChatStore {
 
 		this.currentResponse = '';
 
-		await goto(`#/chat/${conversation.id}`);
+		await goto(`/chat/${conversation.id}`);
 
 		return conversation.id;
 	}

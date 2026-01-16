@@ -100,7 +100,7 @@
 			searchQuery = '';
 		}
 
-		await goto(`#/chat/${id}`);
+		await goto(`/chat/${id}`);
 	}
 </script>
 

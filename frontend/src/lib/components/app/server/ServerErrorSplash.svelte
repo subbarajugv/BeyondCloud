@@ -77,7 +77,7 @@
 
 				// Show success state briefly, then navigate to home
 				setTimeout(() => {
-					goto(`#/`);
+					goto(`/`);
 				}, 1000);
 			} else {
 				// API key is invalid - User Story A
