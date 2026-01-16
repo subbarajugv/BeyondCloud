@@ -38,13 +38,17 @@
 | 0 | Multi-Backend LLM Integration | - | ✅ Done |
 | 1 | Backend (Auth, DB, APIs) | - | ✅ Done |
 | 2 | Frontend (Auth UI) | ✓ With Phase 1 | ✅ Done |
-| 3 | Data Migration | - | ✅ Done |
-| 4 | Testing & Polish | - | To Do |
-| 5 | Production Deployment | - | To Do |
-| 6 | MCP Integration | - | Placeholder |
+| 3 | Data Migration | - | ✅ Done (Hybrid) |
+| 4 | RAG System | - | 🚧 Next |
+| 5 | Agents & Tools | ✓ With Phase 4 | To Do |
+| 6 | Security & Production | - | To Do |
+
+> **Note**: Phase 3 uses hybrid IndexedDB/API approach. See [REMOVING_DEXIE.md](./REMOVING_DEXIE.md) for optional removal guide.
 
 ## Documentation
-- [implementation_plan.md](../llamacpp-auth-webui/docs/implementation_plan.md) - Main plan
-- [component-architecture.md](../llamacpp-auth-webui/docs/component-architecture.md) - Components
-- [api-contract.md](../llamacpp-auth-webui/docs/api-contract.md) - API specification
-- [multi-backend-pros-cons.md](../llamacpp-auth-webui/docs/multi-backend-pros-cons.md) - Provider analysis
+- [implementation_plan.md](./implementation_plan.md) - Main plan
+- [component-architecture.md](./component-architecture.md) - Components
+- [api-contract.md](./api-contract.md) - API specification
+- [multi-backend-pros-cons.md](./multi-backend-pros-cons.md) - Provider analysis
+- [REMOVING_DEXIE.md](./REMOVING_DEXIE.md) - Optional IndexedDB removal guide
+
