@@ -1,20 +1,61 @@
 """
 llama.cpp Auth WebUI - Python/FastAPI Backend
-Phase 0: Multi-Backend LLM Integration
+Phase 0-4: Multi-Backend LLM + RAG + Tracing
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 from datetime import datetime
 
 from app.config import get_settings
 from app.routers import providers
+from app.routers import rag
+from app.database import init_database
 
 settings = get_settings()
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Startup and shutdown events"""
+    # Startup
+    await init_database()
+    print(f"""
+╔═══════════════════════════════════════════════════════════╗
+║                                                           ║
+║   🦙 llama.cpp Auth WebUI - Python AI Service             ║
+║                                                           ║
+║   Server running on http://localhost:{settings.port}               ║
+║   Default LLM: {settings.default_llm_provider.ljust(11)}                           ║
+║                                                           ║
+║   Phase 0 - Providers:                                    ║
+║   - GET  /api/health                                      ║
+║   - GET  /api/providers                                   ║
+║   - POST /api/providers/test                              ║
+║   - GET  /api/models                                      ║
+║                                                           ║
+║   Phase 4 - RAG:                                          ║
+║   - GET  /api/rag/sources                                 ║
+║   - POST /api/rag/ingest                                  ║
+║   - POST /api/rag/ingest/file                             ║
+║   - POST /api/rag/retrieve                                ║
+║   - POST /api/rag/query                                   ║
+║   - DELETE /api/rag/sources/:id                           ║
+║                                                           ║
+╚═══════════════════════════════════════════════════════════╝
+    """)
+    
+    yield
+    
+    # Shutdown
+    print("Shutting down...")
+
+
 app = FastAPI(
-    title="llama.cpp Auth WebUI API",
-    description="Backend API for llama.cpp Authenticated WebUI",
+    title="llama.cpp Auth WebUI - AI Service",
+    description="Python AI Service for RAG, Agents, and Memory",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 # =============================================================================
@@ -23,7 +64,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.frontend_url],
+    allow_origins=[settings.frontend_url, "http://localhost:3000"],  # Allow Node.js backend
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -38,6 +79,7 @@ async def health_check():
     """Health check endpoint"""
     return {
         "status": "ok",
+        "service": "python-ai",
         "version": "1.0",
         "timestamp": datetime.utcnow().isoformat() + "Z",
     }
@@ -46,6 +88,9 @@ async def health_check():
 # Provider routes (Phase 0)
 app.include_router(providers.router, prefix="/api")
 
+# RAG routes (Phase 4)
+app.include_router(rag.router, prefix="/api")
+
 # Models endpoint (convenience alias)
 @app.get("/api/models")
 async def get_models(provider: str = "llama.cpp"):
@@ -53,56 +98,6 @@ async def get_models(provider: str = "llama.cpp"):
     from app.services.provider_service import provider_service
     models = await provider_service.get_models(provider)
     return {"models": models, "provider": provider}
-
-
-# =============================================================================
-# Placeholder routes for future phases
-# =============================================================================
-
-@app.api_route("/api/auth/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
-async def auth_placeholder(path: str):
-    """Placeholder for auth endpoints (Phase 1)"""
-    return {
-        "error": {
-            "code": "NOT_IMPLEMENTED",
-            "message": "Authentication endpoints coming in Phase 1",
-        }
-    }
-
-
-@app.post("/api/chat/completions")
-async def chat_completions_placeholder():
-    """Placeholder for chat completion (Phase 1)"""
-    return {
-        "error": {
-            "code": "NOT_IMPLEMENTED",
-            "message": "Chat completion endpoint coming in Phase 1",
-        }
-    }
-
-
-# =============================================================================
-# Startup
-# =============================================================================
-
-@app.on_event("startup")
-async def startup_event():
-    print(f"""
-╔═══════════════════════════════════════════════════════════╗
-║                                                           ║
-║   🦙 llama.cpp Auth WebUI - Backend (Python)              ║
-║                                                           ║
-║   Server running on http://localhost:{settings.port}               ║
-║   Default LLM: {settings.default_llm_provider.ljust(11)}                           ║
-║                                                           ║
-║   Endpoints:                                              ║
-║   - GET  /api/health                                      ║
-║   - GET  /api/providers                                   ║
-║   - POST /api/providers/test                              ║
-║   - GET  /api/models                                      ║
-║                                                           ║
-╚═══════════════════════════════════════════════════════════╝
-    """)
 
 
 if __name__ == "__main__":

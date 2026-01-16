@@ -31,24 +31,38 @@
   - [x] Add MCP integration as Phase 6 (placeholder)
   - [x] Document placeholder pattern
 
-## Implementation Order
+## Progress Summary
 
-| Phase | Component | Can Parallel | Status |
-|-------|-----------|--------------|--------|
-| 0 | Multi-Backend LLM Integration | - | ✅ Done |
-| 1 | Backend (Auth, DB, APIs) | - | ✅ Done |
-| 2 | Frontend (Auth UI) | ✓ With Phase 1 | ✅ Done |
-| 3 | Data Migration | - | ✅ Done (Hybrid) |
-| 4 | RAG System | - | 🚧 Next |
-| 5 | Agents & Tools | ✓ With Phase 4 | To Do |
-| 6 | Security & Production | - | To Do |
+### ✅ Phase 1: Backend Gaps (Complete)
+- **Auth Endpoints**: Added `/api/auth/refresh`, `/api/auth/forgot-password`, `/api/auth/reset-password`.
+- **Chat Proxy**: Added `/api/chat/completions` with streaming support.
+- **Database**: Added `refresh_tokens` and `password_reset_tokens` tables.
+- **Frontend**: Fixed routing from hash-based (`#/chat`) to path-based (`/chat`).
 
-> **Note**: Phase 3 uses hybrid IndexedDB/API approach. See [REMOVING_DEXIE.md](./REMOVING_DEXIE.md) for optional removal guide.
+### 🚧 Phase 4: RAG & Tracing (In Progress - Infrastructure Ready)
+- **Python AI Service**: FastAPI microservice setup.
+- **Observability**: Custom OTel-compatible tracing system logging to PostgreSQL.
+- **RAG Engine**: 
+  - `pgvector` integration for persistent embeddings.
+  - `FAISS` ready for fast similarity search.
+  - Ingestion pipeline for `.txt`, `.md`, `.pdf`, `.docx`.
+  - Retrieval service with similarity scoring.
+- **Environment**: Managed via `uv` in `.venv`.
+
+## Phase Order (Updated)
+
+| Phase | Component | Status |
+|-------|-----------|--------|
+| 0 | Multi-Backend LLM Integration | ✅ Done |
+| 1 | Backend (Auth, DB, APIs) | ✅ Done |
+| 2 | Frontend (Auth UI) | ✅ Done |
+| 3 | Data Migration | ✅ Done (Hybrid) |
+| 4 | RAG & Tracing | 🚧 In Progress |
+| 5 | Agents & Memory | To Do |
+| 6 | Security & Production | To Do |
 
 ## Documentation
-- [implementation_plan.md](./implementation_plan.md) - Main plan
-- [component-architecture.md](./component-architecture.md) - Components
-- [api-contract.md](./api-contract.md) - API specification
-- [multi-backend-pros-cons.md](./multi-backend-pros-cons.md) - Provider analysis
+- [implementation_plan.md](./implementation_plan.md) - AI Service & RAG Architecture
 - [REMOVING_DEXIE.md](./REMOVING_DEXIE.md) - Optional IndexedDB removal guide
+- [api-contract.md](./api-contract.md) - API specification
 
