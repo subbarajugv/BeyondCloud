@@ -135,3 +135,41 @@ export function generateToken(userId: string, email: string): string {
         expiresIn: config.jwtExpiresIn,
     });
 }
+
+/**
+ * Generate a short-lived access token (15 minutes)
+ */
+export function generateAccessToken(userId: string, email: string): string {
+    const payload: JwtPayload = {
+        userId,
+        email,
+    };
+
+    return jwt.sign(payload, config.jwtSecret, {
+        expiresIn: `${config.accessTokenExpireMinutes}m`,
+    });
+}
+
+/**
+ * Generate a random refresh token
+ */
+export function generateRefreshToken(): string {
+    const crypto = require('crypto');
+    return crypto.randomBytes(64).toString('hex');
+}
+
+/**
+ * Hash a token for secure storage
+ */
+export function hashToken(token: string): string {
+    const crypto = require('crypto');
+    return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+/**
+ * Generate a password reset token (random string)
+ */
+export function generatePasswordResetToken(): string {
+    const crypto = require('crypto');
+    return crypto.randomBytes(32).toString('hex');
+}

@@ -240,4 +240,302 @@ router.put('/profile', authenticateToken, async (req: AuthenticatedRequest, res:
     }
 });
 
+/**
+ * POST /api/auth/refresh
+ * Refresh access token using refresh token
+ */
+router.post('/refresh', async (req: Request<{}, {}, { refreshToken: string }>, res: Response) => {
+    const { refreshToken } = req.body;
+
+    if (!refreshToken) {
+        return res.status(400).json({
+            error: {
+                code: 'VALIDATION_ERROR',
+                message: 'Refresh token is required',
+            },
+        });
+    }
+
+    try {
+        const { hashToken, generateToken, generateRefreshToken } = await import('../middleware/auth');
+        const tokenHash = hashToken(refreshToken);
+
+        // Find the refresh token
+        const tokens = await query<{
+            id: string;
+            user_id: string;
+            expires_at: Date;
+            revoked_at: Date | null;
+        }>(
+            `SELECT id, user_id, expires_at, revoked_at FROM refresh_tokens 
+             WHERE token_hash = $1`,
+            [tokenHash]
+        );
+
+        if (tokens.length === 0) {
+            return res.status(401).json({
+                error: {
+                    code: 'INVALID_TOKEN',
+                    message: 'Invalid refresh token',
+                },
+            });
+        }
+
+        const token = tokens[0];
+
+        // Check if token is revoked
+        if (token.revoked_at) {
+            return res.status(401).json({
+                error: {
+                    code: 'TOKEN_REVOKED',
+                    message: 'Refresh token has been revoked',
+                },
+            });
+        }
+
+        // Check if token is expired
+        if (new Date(token.expires_at) < new Date()) {
+            return res.status(401).json({
+                error: {
+                    code: 'TOKEN_EXPIRED',
+                    message: 'Refresh token has expired',
+                },
+            });
+        }
+
+        // Get user
+        const users = await query<{ id: string; email: string; display_name: string | null }>(
+            'SELECT id, email, display_name FROM users WHERE id = $1',
+            [token.user_id]
+        );
+
+        if (users.length === 0) {
+            return res.status(401).json({
+                error: {
+                    code: 'USER_NOT_FOUND',
+                    message: 'User not found',
+                },
+            });
+        }
+
+        const user = users[0];
+
+        // Rotate refresh token (invalidate old, create new)
+        await query('UPDATE refresh_tokens SET revoked_at = NOW() WHERE id = $1', [token.id]);
+
+        const newRefreshToken = generateRefreshToken();
+        const newTokenHash = hashToken(newRefreshToken);
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
+
+        await query(
+            `INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
+             VALUES ($1, $2, $3)`,
+            [user.id, newTokenHash, expiresAt]
+        );
+
+        // Generate new access token
+        const accessToken = generateToken(user.id, user.email);
+
+        res.json({
+            user: {
+                id: user.id,
+                email: user.email,
+                displayName: user.display_name,
+            },
+            token: accessToken,
+            refreshToken: newRefreshToken,
+        });
+    } catch (error) {
+        console.error('Token refresh error:', error);
+        res.status(500).json({
+            error: {
+                code: 'SERVER_ERROR',
+                message: 'Failed to refresh token',
+            },
+        });
+    }
+});
+
+/**
+ * POST /api/auth/forgot-password
+ * Request password reset email
+ */
+router.post('/forgot-password', async (req: Request<{}, {}, { email: string }>, res: Response) => {
+    const { email } = req.body;
+
+    if (!email) {
+        return res.status(400).json({
+            error: {
+                code: 'VALIDATION_ERROR',
+                message: 'Email is required',
+            },
+        });
+    }
+
+    try {
+        // Always return success to prevent email enumeration attacks
+        const successResponse = {
+            success: true,
+            message: 'If an account exists with this email, a password reset link has been sent.',
+        };
+
+        // Find user
+        const users = await query<{ id: string; email: string }>(
+            'SELECT id, email FROM users WHERE email = $1',
+            [email.toLowerCase()]
+        );
+
+        if (users.length === 0) {
+            // Don't reveal that user doesn't exist
+            return res.json(successResponse);
+        }
+
+        const user = users[0];
+
+        // Invalidate any existing reset tokens for this user
+        await query(
+            'UPDATE password_reset_tokens SET used_at = NOW() WHERE user_id = $1 AND used_at IS NULL',
+            [user.id]
+        );
+
+        // Generate reset token
+        const { generatePasswordResetToken, hashToken } = await import('../middleware/auth');
+        const resetToken = generatePasswordResetToken();
+        const tokenHash = hashToken(resetToken);
+
+        const expiresAt = new Date();
+        expiresAt.setHours(expiresAt.getHours() + 1); // 1 hour expiry
+
+        await query(
+            `INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
+             VALUES ($1, $2, $3)`,
+            [user.id, tokenHash, expiresAt]
+        );
+
+        // In production, send email here with reset link
+        // For now, log the token (development only)
+        console.log(`[DEV] Password reset token for ${email}: ${resetToken}`);
+
+        res.json(successResponse);
+    } catch (error) {
+        console.error('Forgot password error:', error);
+        res.status(500).json({
+            error: {
+                code: 'SERVER_ERROR',
+                message: 'Failed to process password reset request',
+            },
+        });
+    }
+});
+
+/**
+ * POST /api/auth/reset-password
+ * Reset password using token
+ */
+router.post('/reset-password', async (req: Request<{}, {}, { token: string; password: string }>, res: Response) => {
+    const { token, password } = req.body;
+
+    if (!token || !password) {
+        return res.status(400).json({
+            error: {
+                code: 'VALIDATION_ERROR',
+                message: 'Token and password are required',
+            },
+        });
+    }
+
+    if (password.length < 8) {
+        return res.status(400).json({
+            error: {
+                code: 'VALIDATION_ERROR',
+                message: 'Password must be at least 8 characters',
+            },
+        });
+    }
+
+    try {
+        const { hashToken } = await import('../middleware/auth');
+        const tokenHash = hashToken(token);
+
+        // Find the reset token
+        const tokens = await query<{
+            id: string;
+            user_id: string;
+            expires_at: Date;
+            used_at: Date | null;
+        }>(
+            `SELECT id, user_id, expires_at, used_at FROM password_reset_tokens 
+             WHERE token_hash = $1`,
+            [tokenHash]
+        );
+
+        if (tokens.length === 0) {
+            return res.status(400).json({
+                error: {
+                    code: 'INVALID_TOKEN',
+                    message: 'Invalid or expired reset token',
+                },
+            });
+        }
+
+        const resetToken = tokens[0];
+
+        // Check if token is already used
+        if (resetToken.used_at) {
+            return res.status(400).json({
+                error: {
+                    code: 'TOKEN_USED',
+                    message: 'This reset token has already been used',
+                },
+            });
+        }
+
+        // Check if token is expired
+        if (new Date(resetToken.expires_at) < new Date()) {
+            return res.status(400).json({
+                error: {
+                    code: 'TOKEN_EXPIRED',
+                    message: 'Reset token has expired',
+                },
+            });
+        }
+
+        // Hash new password
+        const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+
+        // Update password
+        await query(
+            'UPDATE users SET password_hash = $1 WHERE id = $2',
+            [passwordHash, resetToken.user_id]
+        );
+
+        // Mark token as used
+        await query(
+            'UPDATE password_reset_tokens SET used_at = NOW() WHERE id = $1',
+            [resetToken.id]
+        );
+
+        // Revoke all refresh tokens for this user (security measure)
+        await query(
+            'UPDATE refresh_tokens SET revoked_at = NOW() WHERE user_id = $1 AND revoked_at IS NULL',
+            [resetToken.user_id]
+        );
+
+        res.json({
+            success: true,
+            message: 'Password has been reset successfully. Please login with your new password.',
+        });
+    } catch (error) {
+        console.error('Reset password error:', error);
+        res.status(500).json({
+            error: {
+                code: 'SERVER_ERROR',
+                message: 'Failed to reset password',
+            },
+        });
+    }
+});
+
 export default router;
+

@@ -7,6 +7,7 @@ import providersRouter from './routes/providers';
 import authRouter from './routes/auth';
 import conversationsRouter from './routes/conversations';
 import settingsRouter from './routes/settings';
+import chatRouter from './routes/chat';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { testConnection, initializeDatabase } from './db';
 
@@ -63,15 +64,8 @@ app.use('/api/conversations', conversationsRouter);
 // Settings routes (Phase 3)
 app.use('/api/settings', settingsRouter);
 
-// Chat completion (Phase 1 - coming soon with streaming)
-app.post('/api/chat/completions', (_req, res) => {
-    res.status(501).json({
-        error: {
-            code: 'NOT_IMPLEMENTED',
-            message: 'Chat completion with streaming coming soon',
-        },
-    });
-});
+// Chat completion proxy (Phase 1)
+app.use('/api/chat', chatRouter);
 
 // =============================================================================
 // Error Handling
@@ -125,8 +119,14 @@ async function startServer() {
 ║   - POST /api/auth/register                               ║
 ║   - POST /api/auth/login                                  ║
 ║   - POST /api/auth/logout                                 ║
+║   - POST /api/auth/refresh                                ║
+║   - POST /api/auth/forgot-password                        ║
+║   - POST /api/auth/reset-password                         ║
 ║   - GET  /api/auth/me                                     ║
 ║   - PUT  /api/auth/profile                                ║
+║                                                           ║
+║   Phase 1 - Chat:                                         ║
+║   - POST /api/chat/completions (streaming proxy)          ║
 ║                                                           ║
 ║   Phase 1 - Conversations:                                ║
 ║   - GET    /api/conversations                             ║
