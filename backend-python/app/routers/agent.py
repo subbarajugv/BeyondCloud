@@ -246,6 +246,13 @@ async def execute_tool(request: ExecuteToolRequest, user_id: str = "default"):
             result = await tools.search_files(args.get("pattern", "*"), args.get("path", "."))
         elif tool_name == "run_command":
             result = await tools.run_command(args.get("cmd", ""))
+        # Phase 8: Advanced Tools
+        elif tool_name == "web_search":
+            result = await tools.web_search(args.get("query", ""), args.get("num_results", 5))
+        elif tool_name == "rag_query":
+            result = await tools.rag_query(args.get("query", ""), args.get("top_k", 5))
+        elif tool_name == "run_python":
+            result = await tools.run_python(args.get("code", ""), args.get("timeout", 10))
         else:
             span.set_status("ERROR", f"Unknown tool: {tool_name}")
             raise HTTPException(status_code=400, detail=f"Unknown tool: {tool_name}")

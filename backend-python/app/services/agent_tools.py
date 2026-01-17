@@ -282,6 +282,170 @@ class AgentTools:
                 error=str(e),
                 safety_level=safety_level
             )
+    
+    # ========== Advanced Tools (Phase 8) ==========
+    
+    async def web_search(self, query: str, num_results: int = 5) -> ToolResponse:
+        """
+        Search the web using DuckDuckGo.
+        
+        Args:
+            query: Search query
+            num_results: Number of results to return (default: 5)
+        """
+        try:
+            from duckduckgo_search import DDGS
+            
+            with DDGS() as ddgs:
+                results = list(ddgs.text(query, max_results=num_results))
+            
+            formatted = [
+                {
+                    "title": r.get("title", ""),
+                    "url": r.get("href", ""),
+                    "snippet": r.get("body", ""),
+                }
+                for r in results
+            ]
+            
+            return ToolResponse(
+                status=ToolResult.SUCCESS,
+                tool_name="web_search",
+                args={"query": query},
+                result={"results": formatted, "count": len(formatted)},
+                requires_approval=False,  # Search is read-only
+                safety_level="safe"
+            )
+        except ImportError:
+            return ToolResponse(
+                status=ToolResult.ERROR,
+                tool_name="web_search",
+                args={"query": query},
+                error="DuckDuckGo search not installed. Run: pip install duckduckgo-search"
+            )
+        except Exception as e:
+            return ToolResponse(
+                status=ToolResult.ERROR,
+                tool_name="web_search",
+                args={"query": query},
+                error=str(e)
+            )
+    
+    async def rag_query(self, query: str, top_k: int = 5) -> ToolResponse:
+        """
+        Query the user's knowledge base (RAG).
+        
+        Args:
+            query: Question to ask the knowledge base
+            top_k: Number of chunks to retrieve (default: 5)
+        """
+        try:
+            from app.services.rag_service import rag_service
+            from app.database import get_db_context
+            
+            async with get_db_context() as db:
+                # Use hardcoded user_id for now (would come from context)
+                user_id = "00000000-0000-0000-0000-000000000001"
+                
+                chunks = await rag_service.hybrid_retrieve(
+                    db=db,
+                    user_id=user_id,
+                    query=query,
+                    top_k=top_k,
+                    use_reranking=True,
+                )
+            
+            formatted = [
+                {
+                    "source": c.get("source_name", "Unknown"),
+                    "content": c.get("content", "")[:500],
+                    "score": round(c.get("rerank_score", c.get("score", 0)), 3),
+                }
+                for c in chunks
+            ]
+            
+            return ToolResponse(
+                status=ToolResult.SUCCESS,
+                tool_name="rag_query",
+                args={"query": query},
+                result={"chunks": formatted, "count": len(formatted)},
+                requires_approval=False,  # Query is read-only
+                safety_level="safe"
+            )
+        except Exception as e:
+            return ToolResponse(
+                status=ToolResult.ERROR,
+                tool_name="rag_query",
+                args={"query": query},
+                error=str(e)
+            )
+    
+    async def run_python(self, code: str, timeout: int = 10) -> ToolResponse:
+        """
+        Execute Python code in a sandboxed environment.
+        
+        Args:
+            code: Python code to execute
+            timeout: Timeout in seconds (default: 10)
+        """
+        try:
+            import tempfile
+            
+            # Create temp script file
+            with tempfile.NamedTemporaryFile(
+                mode='w', 
+                suffix='.py', 
+                delete=False,
+                dir=str(self.sandbox_path)
+            ) as f:
+                f.write(code)
+                script_path = f.name
+            
+            try:
+                # Run with restricted environment
+                result = subprocess.run(
+                    ['python', script_path],
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout,
+                    cwd=str(self.sandbox_path),
+                    env={
+                        'PATH': os.environ.get('PATH', ''),
+                        'HOME': str(self.sandbox_path),
+                        'PYTHONDONTWRITEBYTECODE': '1',
+                    }
+                )
+                
+                return ToolResponse(
+                    status=ToolResult.SUCCESS,
+                    tool_name="run_python",
+                    args={"code": code[:200] + "..." if len(code) > 200 else code},
+                    result={
+                        "stdout": result.stdout,
+                        "stderr": result.stderr,
+                        "return_code": result.returncode,
+                    },
+                    requires_approval=True,  # Code execution requires approval
+                    safety_level="dangerous"
+                )
+            finally:
+                # Clean up temp file
+                os.unlink(script_path)
+                
+        except subprocess.TimeoutExpired:
+            return ToolResponse(
+                status=ToolResult.ERROR,
+                tool_name="run_python",
+                args={"code": code[:100] + "..."},
+                error=f"Execution timed out after {timeout}s"
+            )
+        except Exception as e:
+            return ToolResponse(
+                status=ToolResult.ERROR,
+                tool_name="run_python",
+                args={"code": code[:100] + "..."},
+                error=str(e)
+            )
 
 
 # Tool schema for LLM function calling
@@ -378,5 +542,70 @@ TOOL_SCHEMAS = [
                 "required": ["cmd"]
             }
         }
+    },
+    # Phase 8: Advanced Tools
+    {
+        "type": "function",
+        "function": {
+            "name": "web_search",
+            "description": "Search the web for information using DuckDuckGo",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search query"
+                    },
+                    "num_results": {
+                        "type": "integer",
+                        "description": "Number of results (default: 5)"
+                    }
+                },
+                "required": ["query"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "rag_query",
+            "description": "Query the user's knowledge base for relevant information",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Question to ask the knowledge base"
+                    },
+                    "top_k": {
+                        "type": "integer",
+                        "description": "Number of results (default: 5)"
+                    }
+                },
+                "required": ["query"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "run_python",
+            "description": "Execute Python code and return the output",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "code": {
+                        "type": "string",
+                        "description": "Python code to execute"
+                    },
+                    "timeout": {
+                        "type": "integer",
+                        "description": "Timeout in seconds (default: 10)"
+                    }
+                },
+                "required": ["code"]
+            }
+        }
     }
 ]
+
