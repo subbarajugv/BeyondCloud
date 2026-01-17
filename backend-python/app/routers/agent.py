@@ -9,6 +9,7 @@ from typing import Optional, Dict, Any, List
 from enum import Enum
 
 from app.services.agent_tools import AgentTools, ToolResponse, ToolResult, TOOL_SCHEMAS
+from app.tracing import create_span, tracer
 
 
 router = APIRouter(prefix="/api/agent", tags=["agent"])
@@ -75,21 +76,24 @@ async def set_sandbox(request: SetSandboxRequest, user_id: str = "default"):
     Args:
         path: Absolute path to the sandbox directory
     """
-    session = get_session(user_id)
-    
-    try:
-        # Validate and create tools
-        tools = AgentTools(request.path)
-        session.sandbox_path = request.path
-        session.tools = tools
+    async with create_span("agent.set_sandbox", {"path": request.path}) as span:
+        session = get_session(user_id)
         
-        return {
-            "success": True,
-            "sandbox_path": request.path,
-            "message": f"Sandbox set to: {request.path}"
-        }
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        try:
+            # Validate and create tools
+            tools = AgentTools(request.path)
+            session.sandbox_path = request.path
+            session.tools = tools
+            
+            span.set_status("OK")
+            return {
+                "success": True,
+                "sandbox_path": request.path,
+                "message": f"Sandbox set to: {request.path}"
+            }
+        except ValueError as e:
+            span.set_status("ERROR", str(e))
+            raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.post("/set-mode")
@@ -142,77 +146,96 @@ async def execute_tool(request: ExecuteToolRequest, user_id: str = "default"):
     2. If tool requires approval and not approved → return pending
     3. If approved or trust mode → execute
     """
-    session = get_session(user_id)
-    
-    if session.tools is None:
-        raise HTTPException(
-            status_code=400, 
-            detail="Sandbox not configured. Call /api/agent/set-sandbox first."
-        )
-    
-    tools = session.tools
-    tool_name = request.tool_name
-    args = request.args
-    
-    # Determine if approval is needed
-    needs_approval = True
-    
-    if session.approval_mode == ApprovalMode.TRUST_MODE:
-        # In trust mode, only commands always need approval
-        if tool_name != "run_command":
-            needs_approval = False
-    
-    # If not approved and needs approval, return pending
-    if needs_approval and not request.approved:
-        import uuid
-        call_id = str(uuid.uuid4())
+    async with create_span("agent.execute", {
+        "tool_name": request.tool_name,
+        "approved": request.approved,
+    }) as span:
+        session = get_session(user_id)
         
-        # Get safety level for commands
-        safety_level = "moderate"
-        if tool_name == "run_command":
-            from app.services.sandbox_service import classify_command
-            safety_level, _ = classify_command(args.get("cmd", ""))
+        if session.tools is None:
+            span.set_status("ERROR", "Sandbox not configured")
+            raise HTTPException(
+                status_code=400, 
+                detail="Sandbox not configured. Call /api/agent/set-sandbox first."
+            )
         
-        pending = ToolCallPending(
-            id=call_id,
-            tool_name=tool_name,
-            args=args,
-            safety_level=safety_level
-        )
-        session.pending_calls[call_id] = pending
+        tools = session.tools
+        tool_name = request.tool_name
+        args = request.args
+        
+        span.set_attribute("tool_args", str(args)[:200])  # Truncate for safety
+        
+        # Determine if approval is needed
+        needs_approval = True
+        
+        if session.approval_mode == ApprovalMode.TRUST_MODE:
+            # In trust mode, only commands always need approval
+            if tool_name != "run_command":
+                needs_approval = False
+        
+        # If not approved and needs approval, return pending
+        if needs_approval and not request.approved:
+            import uuid
+            call_id = str(uuid.uuid4())
+            
+            # Get safety level for commands
+            safety_level = "moderate"
+            if tool_name == "run_command":
+                from app.services.sandbox_service import classify_command
+                safety_level, _ = classify_command(args.get("cmd", ""))
+            
+            pending = ToolCallPending(
+                id=call_id,
+                tool_name=tool_name,
+                args=args,
+                safety_level=safety_level
+            )
+            session.pending_calls[call_id] = pending
+            
+            span.set_attribute("status", "pending_approval")
+            span.set_attribute("call_id", call_id)
+            span.set_attribute("safety_level", safety_level)
+            
+            return {
+                "status": "pending_approval",
+                "call_id": call_id,
+                "tool_name": tool_name,
+                "args": args,
+                "safety_level": safety_level,
+                "message": "Tool call requires approval"
+            }
+        
+        # Execute the tool
+        span.add_event("executing_tool")
+        result: ToolResponse
+        
+        if tool_name == "read_file":
+            result = await tools.read_file(args.get("path", ""))
+        elif tool_name == "write_file":
+            result = await tools.write_file(args.get("path", ""), args.get("content", ""))
+        elif tool_name == "list_dir":
+            result = await tools.list_dir(args.get("path", "."))
+        elif tool_name == "search_files":
+            result = await tools.search_files(args.get("pattern", "*"), args.get("path", "."))
+        elif tool_name == "run_command":
+            result = await tools.run_command(args.get("cmd", ""))
+        else:
+            span.set_status("ERROR", f"Unknown tool: {tool_name}")
+            raise HTTPException(status_code=400, detail=f"Unknown tool: {tool_name}")
+        
+        span.set_attribute("result_status", result.status.value)
+        if result.error:
+            span.set_status("ERROR", result.error)
+        else:
+            span.set_status("OK")
         
         return {
-            "status": "pending_approval",
-            "call_id": call_id,
-            "tool_name": tool_name,
-            "args": args,
-            "safety_level": safety_level,
-            "message": "Tool call requires approval"
+            "status": result.status.value,
+            "tool_name": result.tool_name,
+            "args": result.args,
+            "result": result.result,
+            "error": result.error,
         }
-    
-    # Execute the tool
-    result: ToolResponse
-    
-    if tool_name == "read_file":
-        result = await tools.read_file(args.get("path", ""))
-    elif tool_name == "write_file":
-        result = await tools.write_file(args.get("path", ""), args.get("content", ""))
-    elif tool_name == "list_dir":
-        result = await tools.list_dir(args.get("path", "."))
-    elif tool_name == "search_files":
-        result = await tools.search_files(args.get("pattern", "*"), args.get("path", "."))
-    elif tool_name == "run_command":
-        result = await tools.run_command(args.get("cmd", ""))
-    else:
-        raise HTTPException(status_code=400, detail=f"Unknown tool: {tool_name}")
-    
-    return {
-        "status": result.status.value,
-        "tool_name": result.tool_name,
-        "args": result.args,
-        "result": result.result,
-        "error": result.error,
-    }
 
 
 @router.post("/approve/{call_id}")

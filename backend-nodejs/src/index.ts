@@ -10,12 +10,16 @@ import settingsRouter from './routes/settings';
 import chatRouter from './routes/chat';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { testConnection, initializeDatabase } from './db';
+import { traceMiddleware } from './tracing';
 
 const app = express();
 
 // =============================================================================
 // Middleware
 // =============================================================================
+
+// Request tracing (OTel-compatible)
+app.use(traceMiddleware());
 
 // Security headers
 app.use(helmet());
