@@ -2,15 +2,23 @@
 Answer Service - Context assembly and LLM generation for RAG
 
 Implements:
-- Context assembly from retrieved chunks
+- Context assembly from retrieved chunks with configurable ordering
 - LLM answer generation with citations
 - Token management
+- Hallucination detection
 """
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Literal
 from dataclasses import dataclass
+from enum import Enum
 
 from app.tracing import create_span
 from app.services.provider_service import provider_service
+
+
+class ContextOrdering(str, Enum):
+    SCORE_DESC = "score_desc"    # Highest score first (default)
+    SCORE_ASC = "score_asc"      # Lowest score first
+    POSITION = "position"         # Original document position
 
 
 @dataclass
@@ -21,6 +29,8 @@ class AnswerResult:
     context_used: str
     chunks_included: int
     model: str
+    grounding_score: float = 1.0
+    hallucination_check: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
 
 
@@ -58,6 +68,8 @@ content
         model: Optional[str] = None,
         temperature: float = 0.3,
         max_tokens: int = 1024,
+        context_ordering: ContextOrdering = ContextOrdering.SCORE_DESC,
+        check_hallucination: bool = False,
     ) -> AnswerResult:
         """
         Generate an answer from retrieved chunks
@@ -69,15 +81,19 @@ content
             model: LLM model to use
             temperature: Sampling temperature (low for factual answers)
             max_tokens: Max tokens in response
+            context_ordering: How to order chunks in context
+            check_hallucination: Run hallucination detection on answer
             
         Returns:
             AnswerResult with generated answer and metadata
         """
         async with create_span("answer.generate", {"query": query[:100]}) as span:
-            # Step 1: Assemble context from chunks
+            # Step 1: Order and assemble context from chunks
             span.add_event("assembling_context")
-            context, included_chunks = self._assemble_context(chunks)
+            ordered_chunks = self._order_chunks(chunks, context_ordering)
+            context, included_chunks = self._assemble_context(ordered_chunks)
             span.set_attribute("chunks_included", len(included_chunks))
+            span.set_attribute("ordering", context_ordering.value)
             
             if not included_chunks:
                 return AnswerResult(
@@ -122,6 +138,8 @@ Please answer based on the context above."""
                     error=response.get("error"),
                 )
             
+            answer_text = response.get("content", "")
+            
             # Build citations from included chunks
             citations = [
                 {
@@ -133,15 +151,46 @@ Please answer based on the context above."""
                 for c in included_chunks
             ]
             
-            span.set_attribute("answer_length", len(response.get("content", "")))
+            # Step 4: Hallucination check (if enabled)
+            hallucination_result = None
+            grounding_score = 1.0
+            
+            if check_hallucination:
+                span.add_event("checking_hallucination")
+                hallucination_result = await self._check_hallucination(
+                    query=query,
+                    answer=answer_text,
+                    context=context,
+                )
+                grounding_score = hallucination_result.get("grounding_score", 1.0)
+                span.set_attribute("grounding_score", grounding_score)
+            
+            span.set_attribute("answer_length", len(answer_text))
             
             return AnswerResult(
-                answer=response.get("content", ""),
+                answer=answer_text,
                 citations=citations,
                 context_used=context,
                 chunks_included=len(included_chunks),
                 model=response.get("model", "unknown"),
+                grounding_score=grounding_score,
+                hallucination_check=hallucination_result,
             )
+    
+    def _order_chunks(
+        self,
+        chunks: List[Dict[str, Any]],
+        ordering: ContextOrdering,
+    ) -> List[Dict[str, Any]]:
+        """Order chunks according to specified strategy"""
+        if ordering == ContextOrdering.SCORE_DESC:
+            return sorted(chunks, key=lambda c: c.get("score", 0), reverse=True)
+        elif ordering == ContextOrdering.SCORE_ASC:
+            return sorted(chunks, key=lambda c: c.get("score", 0))
+        elif ordering == ContextOrdering.POSITION:
+            # Order by chunk_index if available, otherwise preserve order
+            return sorted(chunks, key=lambda c: c.get("metadata", {}).get("chunk_index", 0))
+        return chunks
     
     def _assemble_context(
         self, 
@@ -177,6 +226,61 @@ Please answer based on the context above."""
         
         return "\n\n".join(context_parts), included_chunks
     
+    async def _check_hallucination(
+        self,
+        query: str,
+        answer: str,
+        context: str,
+    ) -> Dict[str, Any]:
+        """
+        LLM-based hallucination detection
+        
+        Analyzes if the answer is grounded in the provided context.
+        
+        Returns:
+            Dict with grounding_score (0-1), issues, and explanation
+        """
+        async with create_span("answer.hallucination_check") as span:
+            prompt = f"""You are a fact-checker. Analyze if the ANSWER is fully grounded in the CONTEXT.
+
+CONTEXT:
+{context[:4000]}
+
+QUESTION: {query}
+
+ANSWER: {answer}
+
+Analyze the answer and respond with JSON:
+{{
+    "grounding_score": 0.0-1.0,  // 1.0 = fully grounded, 0.0 = hallucinated
+    "issues": ["list of claims not in context"],
+    "verdict": "grounded" | "partially_grounded" | "hallucinated",
+    "explanation": "brief explanation"
+}}"""
+
+            try:
+                response = await provider_service.chat_completion(
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.1,
+                    max_tokens=500,
+                )
+                
+                import json
+                content = response.get("content", "").strip()
+                
+                # Extract JSON from response
+                if "{" in content:
+                    json_str = content[content.find("{"):content.rfind("}")+1]
+                    result = json.loads(json_str)
+                    span.set_attribute("verdict", result.get("verdict", "unknown"))
+                    return result
+                
+                return {"grounding_score": 0.5, "verdict": "unknown", "issues": [], "explanation": "Could not parse result"}
+                
+            except Exception as e:
+                span.set_attribute("error", str(e))
+                return {"grounding_score": 0.5, "verdict": "error", "issues": [], "explanation": str(e)}
+    
     async def answer_with_grounding_check(
         self,
         query: str,
@@ -207,8 +311,9 @@ Please answer based on the context above."""
                 error="Insufficient grounding",
             )
         
-        return await self.generate_answer(query, grounded_chunks)
+        return await self.generate_answer(query, grounded_chunks, check_hallucination=True)
 
 
 # Singleton instance
 answer_service = AnswerService()
+
