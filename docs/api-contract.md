@@ -771,6 +771,190 @@ Delete a document source and all its chunks.
 
 ---
 
+## Agent Endpoints (Python AI Service)
+
+> **Base URL**: Python AI service (default port 8000)
+
+### POST /api/agent/set-sandbox
+
+Set the working directory for agent operations.
+
+**Request:**
+```json
+{
+  "path": "/home/user/projects"
+}
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "sandbox_path": "/home/user/projects",
+  "message": "Working directory set successfully"
+}
+```
+
+---
+
+### POST /api/agent/set-mode
+
+Set the approval mode for tool execution.
+
+**Request:**
+```json
+{
+  "mode": "trust_mode"
+}
+```
+
+**Modes:**
+- `require_approval`: All tools need user approval (default)
+- `trust_mode`: Safe tools auto-execute, risky ones still need approval
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "mode": "trust_mode"
+}
+```
+
+---
+
+### GET /api/agent/status
+
+Get current agent configuration status.
+
+**Response (200):**
+```json
+{
+  "sandbox_path": "/home/user/projects",
+  "sandbox_active": true,
+  "approval_mode": "require_approval",
+  "pending_approvals": 2
+}
+```
+
+---
+
+### GET /api/agent/tools
+
+Get available tool schemas for LLM function calling.
+
+**Response (200):**
+```json
+{
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "read_file",
+        "description": "Read the contents of a file",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {"type": "string", "description": "Path to file"}
+          },
+          "required": ["path"]
+        }
+      }
+    }
+  ]
+}
+```
+
+---
+
+### POST /api/agent/execute
+
+Execute a tool with approval check.
+
+**Request:**
+```json
+{
+  "tool_name": "read_file",
+  "args": {"path": "README.md"},
+  "approved": false
+}
+```
+
+**Response (200) - Pending Approval:**
+```json
+{
+  "status": "pending_approval",
+  "call_id": "uuid",
+  "tool_name": "read_file",
+  "args": {"path": "README.md"},
+  "safety_level": "safe",
+  "message": "Tool call requires approval"
+}
+```
+
+**Response (200) - Executed:**
+```json
+{
+  "status": "success",
+  "tool_name": "read_file",
+  "result": {
+    "content": "# Project README...",
+    "path": "/home/user/projects/README.md"
+  }
+}
+```
+
+---
+
+### POST /api/agent/approve/{call_id}
+
+Approve a pending tool call.
+
+**Response (200):**
+```json
+{
+  "status": "success",
+  "tool_name": "read_file",
+  "result": {...}
+}
+```
+
+---
+
+### POST /api/agent/reject/{call_id}
+
+Reject a pending tool call.
+
+**Response (200):**
+```json
+{
+  "status": "rejected",
+  "tool_name": "read_file",
+  "message": "Tool call rejected by user"
+}
+```
+
+---
+
+### GET /api/agent/pending
+
+Get all pending tool calls awaiting approval.
+
+**Response (200):**
+```json
+{
+  "pending_calls": [
+    {
+      "id": "uuid",
+      "tool_name": "run_command",
+      "args": {"cmd": "ls -la"},
+      "safety_level": "moderate"
+    }
+  ]
+}
+```
+
+---
+
 ## Error Response Format
 
 All errors follow this format:

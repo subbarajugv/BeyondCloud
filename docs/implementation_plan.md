@@ -521,7 +521,41 @@ const response = await fetch(`${activeProvider.baseUrl}/chat/completions`, {
 5. Implement session persistence
 6. Add "Remember me" functionality
 
-### Phase 5: Production Deployment
+### Phase 5: MCP Integration
+> **Status**: In Progress - implement external tool server connections
+
+1. Install MCP SDK (`@modelcontextprotocol/sdk` for Node.js or `mcp` for Python)
+2. Implement MCPService with real implementation
+3. Add MCP server configuration to Settings UI
+4. Implement tool discovery (`listTools`)
+5. Implement tool execution (`callTool`)
+6. Convert MCP tools to OpenAI function format
+7. Integrate with chat flow (tool calls → MCP → LLM)
+
+**MCP Service Interface:**
+```typescript
+interface MCPService {
+  listServers(): Promise<MCPServer[]>;
+  addServer(config: MCPServerConfig): Promise<void>;
+  removeServer(id: string): Promise<void>;
+  listTools(serverId?: string): Promise<MCPTool[]>;
+  callTool(serverId: string, toolName: string, args: any): Promise<any>;
+  getOpenAITools(): Promise<OpenAITool[]>;
+}
+```
+
+### Phase 6: Agent & Tools System (Completion)
+> **Status**: Partial - core done, add remaining tools
+
+1. ✅ Agent execution loop
+2. ✅ Tool registry with file/command tools
+3. ✅ Tool approval UI
+4. ✅ OTel-compatible tracing
+5. [ ] Web search tool
+6. [ ] Code interpreter tool
+7. [ ] HTTP request tool
+
+### Phase 7: Production Deployment (LAST)
 1. Set up reverse proxy (Nginx or Caddy)
 2. Configure same-origin deployment (eliminates CORS)
 3. SSL/TLS certificate setup
@@ -530,33 +564,6 @@ const response = await fetch(`${activeProvider.baseUrl}/chat/completions`, {
 6. Logging and monitoring setup
 7. Backup and recovery procedures
 
-### Phase 6: MCP Integration (Placeholder)
-> **Status**: Placeholder - interface defined, implement when needed
-
-1. Install MCP SDK (`@modelcontextprotocol/sdk` for Node.js or `mcp` for Python)
-2. Implement MCPService with placeholder interface
-3. Add MCP server configuration to Settings UI
-4. Implement tool discovery (`listTools`)
-5. Implement tool execution (`callTool`)
-6. Convert MCP tools to OpenAI function format
-7. Integrate with chat flow (tool calls → MCP → LLM)
-
-**MCP Placeholder Implementation:**
-```typescript
-// Phase 6 starts with this placeholder
-class MCPServicePlaceholder implements MCPService {
-  async listServers() { return []; }
-  async addServer() { throw new Error("MCP coming in Phase 6"); }
-  async listTools() { return []; }
-  async callTool() { throw new Error("MCP coming in Phase 6"); }
-  async getOpenAITools() { return []; }
-}
-
-// Later: Replace with real implementation
-class MCPServiceReal implements MCPService {
-  // Uses @modelcontextprotocol/sdk
-}
-```
 
 ---
 
