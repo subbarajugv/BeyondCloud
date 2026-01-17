@@ -129,10 +129,29 @@ async def get_status(user_id: str = "default"):
 
 
 @router.get("/tools")
-async def get_tools():
-    """Get available tool schemas for LLM function calling"""
+async def get_tools(include_mcp: bool = True):
+    """
+    Get available tool schemas for LLM function calling.
+    
+    Args:
+        include_mcp: If True, merge MCP tools with built-in tools
+        
+    Returns:
+        Combined list of tool schemas in OpenAI format
+    """
+    # Start with built-in tools
+    all_tools = list(TOOL_SCHEMAS)
+    
+    # Add MCP tools if requested
+    if include_mcp:
+        from app.services.mcp_service import mcp_service
+        mcp_tools = mcp_service.get_openai_tools()
+        all_tools.extend(mcp_tools)
+    
     return {
-        "tools": TOOL_SCHEMAS
+        "tools": all_tools,
+        "builtin_count": len(TOOL_SCHEMAS),
+        "mcp_count": len(all_tools) - len(TOOL_SCHEMAS),
     }
 
 

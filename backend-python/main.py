@@ -12,6 +12,7 @@ from app.routers import providers
 from app.routers import rag
 from app.routers import query
 from app.routers import agent
+from app.routers import mcp
 from app.database import init_database
 
 settings = get_settings()
@@ -55,6 +56,13 @@ async def lifespan(app: FastAPI):
 ║   - POST /api/agent/execute                               ║
 ║   - POST /api/agent/approve/:id                           ║
 ║   - GET  /api/agent/status                                ║
+║                                                           ║
+║   Phase 6 - MCP Integration:                              ║
+║   - GET  /api/mcp/servers                                 ║
+║   - POST /api/mcp/servers                                 ║
+║   - DELETE /api/mcp/servers/:id                           ║
+║   - GET  /api/mcp/tools                                   ║
+║   - POST /api/mcp/tools/call                              ║
 ║                                                           ║
 ╚═══════════════════════════════════════════════════════════╝
     """)
@@ -110,6 +118,9 @@ app.include_router(query.router, prefix="/api")
 
 # Agent routes (Phase 5)
 app.include_router(agent.router)
+
+# MCP routes (Phase 6)
+app.include_router(mcp.router)
 
 # Models endpoint (convenience alias)
 @app.get("/api/models")
