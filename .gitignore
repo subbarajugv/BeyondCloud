@@ -43,3 +43,17 @@ test-results/
 # Temporary files
 tmp/
 temp/
+
+# Python Virtual Environments
+venv/
+.venv/
+env/
+create/
+agent-daemon/create/
+
+# Node.js
+dist/
+backend-nodejs/dist/
+frontend/dist/
+frontend/package-lock.json
+backend-nodejs/package-lock.json

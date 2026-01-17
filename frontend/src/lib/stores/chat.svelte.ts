@@ -58,6 +58,12 @@ class ChatStore {
 	conversationStreamingStates = new SvelteMap<string, { response: string; messageId: string }>();
 	titleUpdateConfirmationCallback?: (currentTitle: string, newTitle: string) => Promise<boolean>;
 
+	// Agentic loop state
+	pendingToolCalls = $state<Array<{ id?: string; type?: string; function?: { name?: string; arguments?: string } }>>([]);
+	isProcessingTools = $state(false);
+	agenticLoopDepth = $state(0);
+	private readonly MAX_AGENTIC_LOOP_DEPTH = 10;
+
 	constructor() {
 		if (browser) {
 			this.initialize();
@@ -315,6 +321,7 @@ class ChatStore {
 		const tools = agentStore.getToolsForLLM();
 		if (tools) {
 			apiOptions.tools = tools;
+			console.log('[Agent] Sending tools to LLM:', tools.length, 'tools');
 		}
 
 		return apiOptions;
@@ -562,6 +569,23 @@ class ChatStore {
 						await onComplete(streamedContent);
 					}
 
+					// Check if there are tool calls that need processing
+					const hasToolCalls = updateData.toolCalls && updateData.toolCalls.trim().length > 0;
+					if (hasToolCalls && agentStore.sandboxActive) {
+						try {
+							const toolCalls = JSON.parse(updateData.toolCalls);
+							if (Array.isArray(toolCalls) && toolCalls.length > 0) {
+								// Set pending tool calls for UI to display
+								this.pendingToolCalls = toolCalls;
+								// Note: We keep loading state true while waiting for tool approval
+								// The UI will show the ToolCallHandler component
+								return;
+							}
+						} catch (e) {
+							console.error('Failed to parse tool calls:', e);
+						}
+					}
+
 					this.setConversationLoading(assistantMessage.convId, false);
 					this.clearConversationStreaming(assistantMessage.convId);
 					slotsService.clearConversationState(assistantMessage.convId);
@@ -793,6 +817,116 @@ class ChatStore {
 		this.conversationStreamingStates.clear();
 		this.isLoading = false;
 		this.currentResponse = '';
+		this.pendingToolCalls = [];
+		this.isProcessingTools = false;
+		this.agenticLoopDepth = 0;
+	}
+
+	/**
+	 * Process pending tool calls and continue the conversation with results.
+	 * This is called by the UI after user approves tool execution.
+	 * 
+	 * @param toolResults - Array of tool results from executed tools
+	 */
+	async processToolCallsAndContinue(
+		toolResults: Array<{ tool_call_id: string; content: string }>
+	): Promise<void> {
+		if (!this.activeConversation || toolResults.length === 0) {
+			this.pendingToolCalls = [];
+			this.isProcessingTools = false;
+			if (this.activeConversation) {
+				this.setConversationLoading(this.activeConversation.id, false);
+			}
+			return;
+		}
+
+		// Check agentic loop depth to prevent infinite loops
+		if (this.agenticLoopDepth >= this.MAX_AGENTIC_LOOP_DEPTH) {
+			console.error('Maximum agentic loop depth reached, stopping');
+			toast.error('Maximum tool call depth reached. Please try a simpler request.');
+			this.pendingToolCalls = [];
+			this.isProcessingTools = false;
+			this.agenticLoopDepth = 0;
+			this.setConversationLoading(this.activeConversation.id, false);
+			return;
+		}
+
+		this.isProcessingTools = true;
+		this.agenticLoopDepth++;
+
+		try {
+			// Get the last assistant message (which contains the tool calls)
+			const lastMessage = this.activeMessages[this.activeMessages.length - 1];
+			if (!lastMessage || lastMessage.role !== 'assistant') {
+				throw new Error('No assistant message to continue from');
+			}
+
+			// Create a tool result message
+			// OpenAI format: role: "tool", tool_call_id: "...", content: "..."
+			const toolResultMessage = await DatabaseStore.createMessageBranch(
+				{
+					convId: this.activeConversation.id,
+					type: 'tool',
+					role: 'tool' as ChatRole,
+					content: JSON.stringify(toolResults),
+					timestamp: Date.now(),
+					thinking: '',
+					toolCalls: '',
+					children: [],
+					model: null
+				},
+				lastMessage.id
+			);
+
+			if (!toolResultMessage) {
+				throw new Error('Failed to create tool result message');
+			}
+
+			this.activeMessages.push(toolResultMessage);
+
+			// Create a new assistant message for the response
+			const assistantMessage = await this.createAssistantMessage(toolResultMessage.id);
+			if (!assistantMessage) {
+				throw new Error('Failed to create assistant message');
+			}
+
+			this.activeMessages.push(assistantMessage);
+
+			// Clear pending tool calls
+			this.pendingToolCalls = [];
+
+			// Continue the conversation with all context
+			const conversationContext = this.activeMessages.slice(0, -1);
+
+			await this.streamChatCompletion(conversationContext, assistantMessage);
+		} catch (error) {
+			console.error('Failed to process tool calls:', error);
+			this.pendingToolCalls = [];
+			this.isProcessingTools = false;
+			this.setConversationLoading(this.activeConversation.id, false);
+
+			if (error instanceof Error) {
+				toast.error(`Tool processing failed: ${error.message}`);
+			}
+		} finally {
+			this.isProcessingTools = false;
+		}
+	}
+
+	/**
+	 * Cancel pending tool calls without executing them.
+	 * The conversation will end with the tool calls not executed.
+	 */
+	cancelToolCalls(): void {
+		this.pendingToolCalls = [];
+		this.isProcessingTools = false;
+		this.agenticLoopDepth = 0;
+
+		if (this.activeConversation) {
+			this.setConversationLoading(this.activeConversation.id, false);
+			this.clearConversationStreaming(this.activeConversation.id);
+			slotsService.clearConversationState(this.activeConversation.id);
+		}
 	}
 
 	/**
@@ -2042,3 +2176,10 @@ export const getConversationStreaming = (convId: string) =>
 	chatStore.getConversationStreamingPublic(convId);
 export const getAllLoadingConversations = () => chatStore.getAllLoadingConversations();
 export const getAllStreamingConversations = () => chatStore.getAllStreamingConversations();
+
+// Agentic loop exports
+export const pendingToolCalls = () => chatStore.pendingToolCalls;
+export const isProcessingTools = () => chatStore.isProcessingTools;
+export const agenticLoopDepth = () => chatStore.agenticLoopDepth;
+export const processToolCallsAndContinue = chatStore.processToolCallsAndContinue.bind(chatStore);
+export const cancelToolCalls = chatStore.cancelToolCalls.bind(chatStore);

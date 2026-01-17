@@ -22,26 +22,29 @@ Both backends implement the **exact same API**. Pick based on your team's expert
 
 | | Python/FastAPI | Node.js/Express |
 |--|----------------|-----------------|
-| **Best for** | Python teams, ML/AI | JS/TS teams |
-| **Quick Start** | `pip install` | `npm install` |
+| **Status** | ✅ Implemented | ✅ Implemented |
+| **Best for** | Python teams, ML/AI, RAG | JS/TS teams |
+| **Features** | Auth, Chat, RAG, Agents | Auth, Chat |
 | **Folder** | `backend-python/` | `backend-nodejs/` |
 
 ## Features
 
 - ✅ **User Authentication**: JWT-based login/register system
 - ✅ **Multi-User Support**: Each user has isolated conversations
-- ✅ **Server-Side Storage**: Conversations stored in database (PostgreSQL/MySQL)
+- ✅ **Server-Side Storage**: Conversations stored in PostgreSQL
 - ✅ **Secure**: Password hashing, JWT tokens, CORS protection
 - ✅ **Modern UI**: Svelte 5 + TailwindCSS v4
+- ✅ **RAG Support**: Document ingestion and retrieval (Python backend)
+- ✅ **Agent Tools**: Sandboxed file operations and command execution (Python backend)
 
 ## Quick Start
 
 ### Prerequisites
 
 - Node.js 18+ (for frontend)
-- Backend runtime (Node.js/Python/Go - choose one)
-- PostgreSQL or MySQL database
-- llama.cpp server running
+- Python 3.11+ or Node.js 18+ (for backend - choose one)
+- PostgreSQL database
+- llama.cpp server or Ollama running
 
 ### Frontend Setup
 
@@ -53,49 +56,60 @@ npm run dev
 
 The frontend will be available at `http://localhost:5173`
 
-### Backend Setup
+### Backend Setup (Python - Recommended)
 
-**Coming soon** - Choose your backend technology:
-- Node.js + Express
-- Python + FastAPI  
-- Go
+```bash
+cd backend-python
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python main.py
+```
 
-See `docs/implementation_plan.md` for detailed setup instructions.
+### Backend Setup (Node.js)
+
+```bash
+cd backend-nodejs
+npm install
+npm run dev
+```
+
+See each backend's `README.md` for detailed configuration and setup instructions.
 
 ## Documentation
 
-- **[Implementation Plan](docs/implementation_plan.md)** - Complete guide for adding authentication
-- **Architecture** - See implementation plan for detailed architecture
-- **API Documentation** - See implementation plan for API endpoints
+- **[API Contract](docs/api-contract.md)** - Complete API specification
+- **[Implementation Plan](docs/implementation_plan.md)** - Architecture and design guide
+- **[Component Architecture](docs/component-architecture.md)** - Frontend component design
+- See `backend-python/docs/` and `backend-nodejs/docs/` for backend-specific docs
 
-## Development Roadmap
+## Development Status
 
-### Phase 1: Backend Setup ⏳
-- [ ] Choose backend technology
-- [ ] Set up database
-- [ ] Implement authentication endpoints
-- [ ] Implement conversation/message APIs
-- [ ] Add llama.cpp proxy endpoint
+### ✅ Phase 1: Backend Setup - Complete
+- [x] Python/FastAPI backend implemented
+- [x] Node.js/Express backend implemented
+- [x] PostgreSQL database integration
+- [x] Authentication endpoints (login, register, refresh)
+- [x] Conversation/message APIs
+- [x] LLM proxy endpoints (llama.cpp, Ollama)
 
-### Phase 2: Frontend Authentication ⏳
-- [ ] Create auth store
-- [ ] Build login/register pages
-- [ ] Add route protection
-- [ ] Implement JWT token refresh
-- [ ] Add user profile component
+### ✅ Phase 2: Frontend Authentication - Complete
+- [x] Auth store with JWT handling
+- [x] Login/register pages
+- [x] Route protection
+- [x] JWT token refresh
+- [x] User menu with logout
 
-### Phase 3: Data Migration ⏳
-- [ ] Replace IndexedDB with API calls
-- [ ] Update chat store
-- [ ] Update settings store
-- [ ] Remove Dexie dependency
+### ✅ Phase 3: Data Migration - Complete
+- [x] API-backed data persistence
+- [x] Chat store integration
+- [x] Settings store integration
 
-### Phase 4: Testing & Polish ⏳
-- [ ] Test authentication flow
-- [ ] Test multi-user isolation
-- [ ] Add loading states
-- [ ] Add error handling
-- [ ] Implement session persistence
+### ✅ Phase 4: Advanced Features - Complete
+- [x] RAG system (document ingestion, retrieval, embedding)
+- [x] Agent tools (file operations, command execution)
+- [x] Tool approval UI for agent actions
+- [x] Sandbox settings configuration
 
 ## Configuration
 

@@ -23,9 +23,11 @@ class SandboxGuard:
         Initialize sandbox guard with the allowed directory.
         
         Args:
-            sandbox_path: Absolute path to the sandbox directory
+            sandbox_path: Absolute path to the sandbox directory (supports ~ for home)
         """
-        self.sandbox_path = Path(sandbox_path).resolve()
+        # Expand ~ to user's home directory
+        expanded_path = os.path.expanduser(sandbox_path)
+        self.sandbox_path = Path(expanded_path).resolve()
         
         if not self.sandbox_path.exists():
             raise ValueError(f"Sandbox path does not exist: {sandbox_path}")

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { ChatMessage } from '$lib/components/app';
+	import { ChatMessage, ToolCallHandler } from '$lib/components/app';
 	import { DatabaseStore } from '$lib/stores/database';
 	import {
 		activeConversation,
@@ -9,7 +9,10 @@
 		editMessageWithBranching,
 		editUserMessagePreserveResponses,
 		navigateToSibling,
-		regenerateMessageWithBranching
+		regenerateMessageWithBranching,
+		pendingToolCalls,
+		processToolCallsAndContinue,
+		cancelToolCalls
 	} from '$lib/stores/chat.svelte';
 	import { getMessageSiblings } from '$lib/utils/branching';
 
@@ -63,6 +66,9 @@
 			};
 		});
 	});
+
+	// Get pending tool calls from chat store
+	let currentPendingToolCalls = $derived(pendingToolCalls());
 
 	async function handleNavigateToSibling(siblingId: string) {
 		await navigateToSibling(siblingId);
@@ -120,6 +126,10 @@
 
 		refreshAllMessages();
 	}
+
+	function handleToolResult(results: Array<{ tool_call_id: string; content: string }>) {
+		processToolCallsAndContinue(results);
+	}
 </script>
 
 <div class="flex h-full flex-col space-y-10 pt-16 md:pt-24 {className}" style="height: auto; ">
@@ -137,4 +147,13 @@
 			onContinueAssistantMessage={handleContinueAssistantMessage}
 		/>
 	{/each}
+
+	{#if currentPendingToolCalls.length > 0}
+		<div class="mx-auto w-full max-w-[48rem]">
+			<ToolCallHandler
+				toolCalls={currentPendingToolCalls}
+				onToolResult={handleToolResult}
+			/>
+		</div>
+	{/if}
 </div>

@@ -14,6 +14,14 @@ let error = $state<string | null>(null);
 // Tool schemas for LLM
 let toolSchemas = $state<unknown[]>([]);
 
+// Toggle for enabling/disabling tools (for models that don't support function calling)
+// Default to DISABLED since most models don't support function calling
+let toolsEnabled = $state<boolean>(
+    typeof localStorage !== 'undefined'
+        ? localStorage.getItem('agentToolsEnabled') === 'true'
+        : false
+);
+
 /**
  * Agent Store - Manages sandbox configuration and tool execution state
  */
@@ -26,6 +34,17 @@ class AgentStore {
     get isLoading() { return isLoading; }
     get error() { return error; }
     get toolSchemas() { return toolSchemas; }
+    get toolsEnabled() { return toolsEnabled; }
+
+    /**
+     * Enable or disable tools being sent to LLM
+     */
+    setToolsEnabled(enabled: boolean): void {
+        toolsEnabled = enabled;
+        if (typeof localStorage !== 'undefined') {
+            localStorage.setItem('agentToolsEnabled', enabled ? 'true' : 'false');
+        }
+    }
 
     /**
      * Initialize agent store - load status from backend
@@ -163,10 +182,10 @@ class AgentStore {
     }
 
     /**
-     * Get tools for LLM request (only if sandbox is active)
+     * Get tools for LLM request (only if sandbox is active AND tools are enabled)
      */
     getToolsForLLM(): unknown[] | undefined {
-        if (!sandboxActive || toolSchemas.length === 0) {
+        if (!toolsEnabled || !sandboxActive || toolSchemas.length === 0) {
             return undefined;
         }
         return toolSchemas;

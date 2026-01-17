@@ -138,7 +138,8 @@ export default defineConfig({
 		proxy: {
 			// Backend API (Phase 0+)
 			'/api': 'http://localhost:3000',
-			// Ollama server endpoints (debugging)
+			// LLM server endpoints (llama.cpp or Ollama)
+			// Change port: 8080 for llama.cpp, 11434 for Ollama
 			'/v1': 'http://localhost:11434',
 			'/props': 'http://localhost:11434',
 			'/slots': 'http://localhost:11434'
