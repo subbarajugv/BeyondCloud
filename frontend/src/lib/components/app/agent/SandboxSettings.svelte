@@ -311,10 +311,8 @@
 		{/if}
 	{/if}
 
-	<!-- MCP Servers (Remote mode only) -->
-	{#if agentMode === 'remote'}
-		<div class="mt-4">
-			<MCPSettings />
-		</div>
-	{/if}
+	<!-- MCP Servers (Available in both modes - connects to Python backend) -->
+	<div class="mt-4">
+		<MCPSettings />
+	</div>
 </div>
