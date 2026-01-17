@@ -64,11 +64,25 @@
 | 1 | Backend (Auth, DB, APIs) | ✅ Done |
 | 2 | Frontend (Auth UI) | ✅ Done |
 | 3 | Data Migration | ✅ Done (Hybrid) |
-| 4 | RAG & Tracing | ✅ Done |
-| 5 | Agents & Memory | 🚧 Next |
-| 6 | Security & Production | To Do |
+| 4 | RAG & Tracing (Basic) | ✅ Done |
+| 5 | Agents & Tools | ✅ Done (Core) |
+| **6** | **MCP Integration** | 🚧 Next |
+| 7 | RAG Advanced (UI Options) | To Do |
+| 8 | Security & Production | To Do |
 
-### Phase 6 Planned (Security)
+### Phase 6: MCP Integration
+- External tool server connections
+- Tool discovery and execution
+- Frontend server management UI
+
+### Phase 7: RAG Advanced (User Options)
+- **Chunking Options**: chunk size, overlap, sentence boundary, semantic chunking
+- **Reranking Options**: model selection, score threshold, result ordering
+- **Context Assembly**: token limits, ordering strategies, overlap handling
+- **Grounding Rules**: citation requirements, hallucination detection
+- **RAG System Message**: custom prompts, persona, guardrails
+
+### Phase 8 Planned (Security)
 - **RBAC**: Role-based access control (user, rag_user, agent_user, admin, owner)
 - Rate limiting, API key management
 - Production hardening
