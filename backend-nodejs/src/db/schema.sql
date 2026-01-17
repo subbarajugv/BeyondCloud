@@ -10,11 +10,15 @@ CREATE TABLE IF NOT EXISTS users (
     email VARCHAR(255) UNIQUE NOT NULL,
     password_hash VARCHAR(255),
     display_name VARCHAR(100),
+    role VARCHAR(20) DEFAULT 'user' NOT NULL,  -- RBAC: user, rag_user, agent_user, admin, owner
     auth_provider VARCHAR(20) DEFAULT 'local',
     provider_id VARCHAR(255),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Index for role queries
+CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
 
 -- Conversations table  
 CREATE TABLE IF NOT EXISTS conversations (

@@ -2,6 +2,8 @@
 Agent Router - API endpoints for agentic operations
 
 Handles sandbox configuration, tool execution, and approval flow.
+
+RBAC: Requires agent_user role or higher
 """
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -10,9 +12,15 @@ from enum import Enum
 
 from app.services.agent_tools import AgentTools, ToolResponse, ToolResult, TOOL_SCHEMAS
 from app.tracing import create_span, tracer
+from app.middleware.rbac import require_min_role
 
 
-router = APIRouter(prefix="/api/agent", tags=["agent"])
+# RBAC: All Agent endpoints require agent_user role or higher
+router = APIRouter(
+    prefix="/api/agent", 
+    tags=["agent"],
+    dependencies=[require_min_role("agent_user")]
+)
 
 
 # ========== Models ==========

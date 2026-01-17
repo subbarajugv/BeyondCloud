@@ -5,6 +5,8 @@ Handles:
 - Server configuration (add/remove/list)
 - Tool discovery and execution
 - Integration with agent tool calling
+
+RBAC: Requires agent_user role or higher
 """
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -12,9 +14,15 @@ from typing import Optional, Dict, Any, List
 
 from app.services.mcp_service import mcp_service, MCPServerConfig
 from app.tracing import create_span
+from app.middleware.rbac import require_min_role
 
 
-router = APIRouter(prefix="/api/mcp", tags=["mcp"])
+# RBAC: All MCP endpoints require agent_user role or higher
+router = APIRouter(
+    prefix="/api/mcp", 
+    tags=["mcp"],
+    dependencies=[require_min_role("agent_user")]
+)
 
 
 # ========== Request/Response Models ==========
