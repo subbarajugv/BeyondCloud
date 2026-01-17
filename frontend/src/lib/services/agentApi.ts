@@ -203,8 +203,128 @@ export const agentApi = {
     async getPendingCalls(): Promise<{ pending: PendingToolCall[] }> {
         const response = await fetch(`${getAgentApiBase()}/pending`);
         return handleResponse(response);
+    },
+
+    // ========== MCP Server Management ==========
+
+    /**
+     * List all configured MCP servers (remote mode only)
+     */
+    async listMCPServers(): Promise<MCPServer[]> {
+        const response = await fetch(`http://localhost:8000/api/mcp/servers`);
+        return handleResponse(response);
+    },
+
+    /**
+     * Add a new MCP server
+     */
+    async addMCPServer(config: MCPServerConfig): Promise<{ id: string; name: string; is_active: boolean }> {
+        const response = await fetch(`http://localhost:8000/api/mcp/servers`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(config)
+        });
+        return handleResponse(response);
+    },
+
+    /**
+     * Remove an MCP server
+     */
+    async removeMCPServer(serverId: string): Promise<{ message: string }> {
+        const response = await fetch(`http://localhost:8000/api/mcp/servers/${serverId}`, {
+            method: 'DELETE'
+        });
+        return handleResponse(response);
+    },
+
+    /**
+     * Get tools from MCP servers
+     */
+    async getMCPTools(): Promise<{ tools: MCPTool[]; count: number }> {
+        const response = await fetch(`http://localhost:8000/api/mcp/tools/openai-format`);
+        return handleResponse(response);
+    },
+
+    /**
+     * Execute a tool - routes to MCP if tool name starts with "mcp_"
+     */
+    async executeToolWithRouting(
+        toolName: string,
+        args: Record<string, unknown>,
+        approved: boolean = false
+    ): Promise<ToolExecuteResult> {
+        // Route MCP tools to MCP service
+        if (toolName.startsWith('mcp_')) {
+            return this.executeMCPTool(toolName, args);
+        }
+        // Otherwise use regular agent execution
+        return this.executeTool(toolName, args, approved);
+    },
+
+    /**
+     * Execute an MCP tool
+     */
+    async executeMCPTool(
+        toolName: string,
+        args: Record<string, unknown>
+    ): Promise<ToolExecuteResult> {
+        // Parse MCP tool name: mcp_{server_id}_{tool_name}
+        const parts = toolName.substring(4).split('_');
+        if (parts.length < 2) {
+            return { status: 'error', tool_name: toolName, args, error: 'Invalid MCP tool name' };
+        }
+        const serverId = parts[0];
+        const actualToolName = parts.slice(1).join('_');
+
+        const response = await fetch(`http://localhost:8000/api/mcp/tools/call`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                server_id: serverId,
+                tool_name: actualToolName,
+                args
+            })
+        });
+
+        const result = await handleResponse<{ status: string; tool_name: string; result?: unknown; error?: string }>(response);
+        return {
+            status: result.status as 'success' | 'error',
+            tool_name: toolName,
+            args,
+            result: result.result,
+            error: result.error
+        };
     }
 };
+
+// MCP Types
+export interface MCPServer {
+    id: string;
+    name: string;
+    transport: 'stdio' | 'http';
+    command?: string;
+    args: string[];
+    url?: string;
+    is_active: boolean;
+}
+
+export interface MCPServerConfig {
+    name: string;
+    transport: 'stdio' | 'http';
+    command?: string;
+    args?: string[];
+    url?: string;
+    env?: Record<string, string>;
+}
+
+export interface MCPTool {
+    type: 'function';
+    function: {
+        name: string;
+        description: string;
+        parameters: Record<string, unknown>;
+    };
+}
 
 export default agentApi;
 

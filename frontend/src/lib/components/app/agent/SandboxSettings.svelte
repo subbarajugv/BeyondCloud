@@ -13,6 +13,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { toast } from 'svelte-sonner';
 	import { onMount } from 'svelte';
+	import MCPSettings from './MCPSettings.svelte';
 
 	let sandboxPath = $state('');
 	let status = $state<AgentStatus | null>(null);
@@ -309,5 +310,11 @@
 			</div>
 		{/if}
 	{/if}
-</div>
 
+	<!-- MCP Servers (Remote mode only) -->
+	{#if agentMode === 'remote'}
+		<div class="mt-4">
+			<MCPSettings />
+		</div>
+	{/if}
+</div>
