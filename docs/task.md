@@ -68,7 +68,8 @@
 | 5 | Agents & Tools | ✅ Done (Core) |
 | **6** | **MCP Integration** | 🚧 Next |
 | 7 | RAG Advanced (UI Options) | To Do |
-| 8 | Security & Production | To Do |
+| 8 | Agents Advanced (Tools & Memory) | To Do |
+| 9 | Security & Production | To Do |
 
 ### Phase 6: MCP Integration
 - External tool server connections
@@ -82,7 +83,14 @@
 - **Grounding Rules**: citation requirements, hallucination detection
 - **RAG System Message**: custom prompts, persona, guardrails
 
-### Phase 8 Planned (Security)
+### Phase 8: Agents Advanced (Tools & Memory)
+- **Web Search Tool**: Search the web and return results
+- **RAG-in-Agent**: Use knowledge base inside agent workflow
+- **Code Interpreter**: Execute Python code in sandbox
+- **Memory System**: Long-term conversation memory, user preferences
+- **Multi-step Planning**: Task decomposition, sub-goal tracking
+
+### Phase 9 Planned (Security)
 - **RBAC**: Role-based access control (user, rag_user, agent_user, admin, owner)
 - Rate limiting, API key management
 - Production hardening
