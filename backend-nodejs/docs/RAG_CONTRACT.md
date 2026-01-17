@@ -264,10 +264,10 @@ POST   /api/rag/retrieve            - Retrieve only (no generation)
 
 ## Contract Compliance Checklist
 
-- [ ] Ingestion contract implemented
-- [ ] Retrieval contract implemented (with reranking)
-- [ ] Context assembly contract implemented
-- [ ] Grounding contract implemented
-- [ ] Answering contract implemented
+- [x] Ingestion contract implemented
+- [x] Retrieval contract implemented (with reranking)
+- [x] Context assembly contract implemented
+- [x] Grounding contract implemented
+- [x] Answering contract implemented
 - [ ] Data source RBAC enforced
-- [ ] API endpoints implemented
+- [x] API endpoints implemented
