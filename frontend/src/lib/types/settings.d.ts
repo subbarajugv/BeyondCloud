@@ -40,6 +40,8 @@ export interface SettingsChatServiceOptions {
 	// Custom parameters
 	custom?: string;
 	timings_per_token?: boolean;
+	// Tool/function calling
+	tools?: unknown[];
 	// Callbacks
 	onChunk?: (chunk: string) => void;
 	onReasoningChunk?: (chunk: string) => void;

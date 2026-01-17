@@ -22,12 +22,12 @@ export interface ApiContextSizeError {
 
 export interface ApiErrorResponse {
 	error:
-		| ApiContextSizeError
-		| {
-				code: number;
-				message: string;
-				type?: string;
-		  };
+	| ApiContextSizeError
+	| {
+		code: number;
+		message: string;
+		type?: string;
+	};
 }
 
 export interface ApiChatMessageData {
@@ -184,6 +184,8 @@ export interface ApiChatCompletionRequest {
 	// Custom parameters (JSON string)
 	custom?: Record<string, unknown>;
 	timings_per_token?: boolean;
+	// Tool/function calling
+	tools?: unknown[];
 }
 
 export interface ApiChatCompletionToolCallFunctionDelta {

@@ -2,6 +2,7 @@ import { DatabaseStore } from '$lib/stores/database';
 import { chatService, slotsService } from '$lib/services';
 import { config } from '$lib/stores/settings.svelte';
 import { serverStore } from '$lib/stores/server.svelte';
+import { agentStore } from '$lib/stores/agentStore.svelte';
 import { waitForAuth } from '$lib/services/api';
 import { normalizeModelName } from '$lib/utils/model-names';
 import { filterByLeafNodeId, findLeafNode, findDescendantMessages } from '$lib/utils/branching';
@@ -308,6 +309,12 @@ class ChatStore {
 		}
 		if (currentConfig.custom) {
 			apiOptions.custom = currentConfig.custom;
+		}
+
+		// Add agent tools if sandbox is active
+		const tools = agentStore.getToolsForLLM();
+		if (tools) {
+			apiOptions.tools = tools;
 		}
 
 		return apiOptions;

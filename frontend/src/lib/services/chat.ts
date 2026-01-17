@@ -99,7 +99,9 @@ export class ChatService {
 			// Other parameters
 			samplers,
 			custom,
-			timings_per_token
+			timings_per_token,
+			// Tool/function calling
+			tools
 		} = options;
 
 		const currentConfig = config();
@@ -190,6 +192,12 @@ export class ChatService {
 		}
 
 		if (timings_per_token !== undefined) requestBody.timings_per_token = timings_per_token;
+
+		// Add tools for function calling (only if provided and non-empty)
+		if (tools && tools.length > 0) {
+			requestBody.tools = tools;
+			console.log('[DEBUG] Tools enabled:', tools.length, 'tools');
+		}
 
 		if (custom) {
 			try {
