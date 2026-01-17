@@ -9,12 +9,14 @@
 		Moon,
 		ChevronLeft,
 		ChevronRight,
-		Database
+		Database,
+		Bot
 	} from '@lucide/svelte';
 	import {
 		ChatSettingsFooter,
 		ChatSettingsImportExportTab,
-		ChatSettingsFields
+		ChatSettingsFields,
+		SandboxSettings
 	} from '$lib/components/app';
 	import { ScrollArea } from '$lib/components/ui/scroll-area';
 	import { config, updateMultipleConfig } from '$lib/stores/settings.svelte';
@@ -263,6 +265,11 @@
 					type: 'textarea'
 				}
 			]
+		},
+		{
+			title: 'Agent',
+			icon: Bot,
+			fields: []
 		}
 		// TODO: Experimental features section will be implemented after initial release
 		// This includes Python interpreter (Pyodide integration) and other experimental features
@@ -486,14 +493,18 @@
 				{#if currentSection.title === 'Import/Export'}
 					<ChatSettingsImportExportTab />
 				{:else}
-					<div class="space-y-6">
-						<ChatSettingsFields
-							fields={currentSection.fields}
-							{localConfig}
-							onConfigChange={handleConfigChange}
-							onThemeChange={handleThemeChange}
-						/>
-					</div>
+					{#if currentSection.title === 'Agent'}
+						<SandboxSettings />
+					{:else}
+						<div class="space-y-6">
+							<ChatSettingsFields
+								fields={currentSection.fields}
+								{localConfig}
+								onConfigChange={handleConfigChange}
+								onThemeChange={handleThemeChange}
+							/>
+						</div>
+					{/if}
 				{/if}
 			</div>
 

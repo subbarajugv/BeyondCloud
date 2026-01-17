@@ -62,3 +62,9 @@ export { default as ServerStatus } from './server/ServerStatus.svelte';
 export { default as ServerErrorSplash } from './server/ServerErrorSplash.svelte';
 export { default as ServerLoadingSplash } from './server/ServerLoadingSplash.svelte';
 export { default as ServerInfo } from './server/ServerInfo.svelte';
+
+// Agent
+export * from './agent';
+
+// RAG
+export * from './rag';
