@@ -203,7 +203,7 @@ export class ChatService {
 		try {
 			const apiKey = currentConfig.apiKey?.toString().trim();
 
-			const response = await fetch(`./v1/chat/completions`, {
+			const response = await fetch(`/v1/chat/completions`, {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',
@@ -717,7 +717,7 @@ export class ChatService {
 			const currentConfig = config();
 			const apiKey = currentConfig.apiKey?.toString().trim();
 
-			const response = await fetch(`./props`, {
+			const response = await fetch(`/props`, {
 				headers: {
 					'Content-Type': 'application/json',
 					...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {})

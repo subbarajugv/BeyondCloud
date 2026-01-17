@@ -2,6 +2,7 @@ import { DatabaseStore } from '$lib/stores/database';
 import { chatService, slotsService } from '$lib/services';
 import { config } from '$lib/stores/settings.svelte';
 import { serverStore } from '$lib/stores/server.svelte';
+import { waitForAuth } from '$lib/services/api';
 import { normalizeModelName } from '$lib/utils/model-names';
 import { filterByLeafNodeId, findLeafNode, findDescendantMessages } from '$lib/utils/branching';
 import { browser } from '$app/environment';
@@ -64,10 +65,17 @@ class ChatStore {
 
 	/**
 	 * Initializes the chat store by loading conversations from the database
-	 * Sets up the initial state and loads existing conversations
+	 * Sets up the initial state and loads existing conversations.
+	 * 
+	 * IMPORTANT: Waits for auth state to be fully restored before loading
+	 * to ensure API calls use the correct authentication token.
 	 */
 	async initialize(): Promise<void> {
 		try {
+			// Wait for auth state to be fully restored from localStorage
+			// This ensures the access token is available for API calls
+			await waitForAuth();
+
 			await this.loadConversations();
 
 			this.isInitialized = true;

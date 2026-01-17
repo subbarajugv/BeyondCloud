@@ -24,6 +24,31 @@ const API_BASE = '/api';
 // Access token storage (in-memory for security, persisted via authStore)
 let accessToken: string | null = null;
 
+// Auth readiness promise - resolves when auth state is fully restored
+let authReadyResolve: (() => void) | null = null;
+const authReadyPromise = new Promise<void>((resolve) => {
+    authReadyResolve = resolve;
+});
+
+/**
+ * Signal that auth initialization is complete.
+ * Called by authStore after restoring tokens from localStorage.
+ */
+export function signalAuthReady(): void {
+    if (authReadyResolve) {
+        authReadyResolve();
+        authReadyResolve = null;
+    }
+}
+
+/**
+ * Wait for auth state to be fully restored from localStorage.
+ * Use this before making API calls that depend on authentication.
+ */
+export function waitForAuth(): Promise<void> {
+    return authReadyPromise;
+}
+
 /**
  * Set the access token for authenticated requests
  */

@@ -103,7 +103,7 @@ async function startServer() {
         console.log(`
 ╔═══════════════════════════════════════════════════════════╗
 ║                                                           ║
-║   🦙 llama.cpp Auth WebUI - Backend                       ║
+║   🌐 BeyondCloud - Backend                                ║
 ║                                                           ║
 ║   Server running on http://localhost:${PORT}               ║
 ║   Environment: ${config.nodeEnv.padEnd(11)}                           ║

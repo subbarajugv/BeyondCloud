@@ -8,6 +8,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.tracing import create_span, tracer
+from app.config import get_settings
 
 
 class RAGService:
@@ -24,11 +25,11 @@ class RAGService:
         self._embedder = None
     
     async def get_embedder(self):
-        """Lazy-load the embedding model"""
+        """Lazy-load the embedding model from config"""
         if self._embedder is None:
             from sentence_transformers import SentenceTransformer
-            # all-MiniLM-L6-v2 produces 384-dim vectors, fast and good quality
-            self._embedder = SentenceTransformer('all-MiniLM-L6-v2')
+            settings = get_settings()
+            self._embedder = SentenceTransformer(settings.embedding_model)
         return self._embedder
     
     def chunk_text(

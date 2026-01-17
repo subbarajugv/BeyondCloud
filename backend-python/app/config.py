@@ -41,6 +41,11 @@ class Settings(BaseSettings):
     gemini_api_key: Optional[str] = None
     groq_api_key: Optional[str] = None
     
+    # RAG Settings
+    embedding_model: str = "all-MiniLM-L6-v2"  # 384 dims, fast, good quality
+    reranker_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"  # Fast cross-encoder
+    embedding_dimension: int = 384  # Must match the embedding model output
+    
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

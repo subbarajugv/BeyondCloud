@@ -13,6 +13,7 @@
 		updateConversationName
 	} from '$lib/stores/chat.svelte';
 	import ChatSidebarActions from './ChatSidebarActions.svelte';
+	import { RAGPanel } from '$lib/components/app/rag';
 
 	const sidebar = Sidebar.useSidebar();
 
@@ -106,7 +107,7 @@
 
 <ScrollArea class="h-[100vh]">
 	<Sidebar.Header class=" top-0 z-10 gap-6 bg-sidebar/50 px-4 pt-4 pb-2 backdrop-blur-lg md:sticky">
-		<a href="#/" onclick={handleMobileSidebarItemClick}>
+		<a href="/" onclick={handleMobileSidebarItemClick}>
 			<h1 class="inline-flex items-center gap-1 px-2 text-xl font-semibold">BeyondCloud</h1>
 		</a>
 
@@ -154,6 +155,9 @@
 			</Sidebar.Menu>
 		</Sidebar.GroupContent>
 	</Sidebar.Group>
+
+	<!-- RAG Knowledge Base Panel -->
+	<RAGPanel />
 
 	<div class="bottom-0 z-10 bg-sidebar bg-sidebar/50 px-4 py-4 backdrop-blur-lg md:sticky"></div>
 </ScrollArea>

@@ -8,6 +8,7 @@ from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 
 from app.tracing import create_span
+from app.config import get_settings
 
 
 @dataclass
@@ -28,13 +29,13 @@ class RerankingService:
     
     def __init__(self):
         self._model = None
-        self._model_name = "cross-encoder/ms-marco-MiniLM-L-6-v2"
     
     async def get_model(self):
-        """Lazy-load the cross-encoder model"""
+        """Lazy-load the cross-encoder model from config"""
         if self._model is None:
             from sentence_transformers import CrossEncoder
-            self._model = CrossEncoder(self._model_name)
+            settings = get_settings()
+            self._model = CrossEncoder(settings.reranker_model)
         return self._model
     
     async def rerank(

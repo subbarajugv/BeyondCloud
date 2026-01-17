@@ -1,7 +1,7 @@
 /**
  * Auth Store - Manages authentication state
  */
-import { authApi, setAccessToken } from '$lib/services/api';
+import { authApi, setAccessToken, signalAuthReady } from '$lib/services/api';
 import type { LoginCredentials, RegisterCredentials, User } from '$lib/types/auth';
 import { browser } from '$app/environment';
 import { syncFromApi, setAuthenticated } from '$lib/stores/settings.svelte';
@@ -16,9 +16,25 @@ class AuthStore {
     isLoading = $state(true);
     error = $state<string | null>(null);
 
+    /**
+     * Promise that resolves when auth state is fully restored from localStorage.
+     * External modules should await this before making authenticated API calls.
+     * This fixes race conditions where modules try to fetch data before auth token is set.
+     */
+    ready: Promise<void>;
+    private resolveReady!: () => void;
+
     constructor() {
+        this.ready = new Promise((resolve) => {
+            this.resolveReady = resolve;
+        });
+
         if (browser) {
             this.init();
+        } else {
+            // Resolve immediately in SSR context
+            this.resolveReady();
+            signalAuthReady();
         }
     }
 
@@ -48,6 +64,9 @@ class AuthStore {
         }
 
         this.isLoading = false;
+        // Signal that auth state is fully restored
+        this.resolveReady();
+        signalAuthReady();  // Also signal via api.ts for modules that can't import authStore
     }
 
     async register(credentials: RegisterCredentials) {

@@ -1,7 +1,7 @@
 {
     "name": "llamacpp-auth-backend",
     "version": "1.0.0",
-    "description": "Node.js/Express backend for llama.cpp Auth WebUI",
+    "description": "Node.js/Express backend for BeyondCloud AI Platform",
     "main": "dist/index.js",
     "scripts": {
         "dev": "tsx watch src/index.ts",

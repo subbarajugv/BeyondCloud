@@ -1,5 +1,5 @@
 """
-llama.cpp Auth WebUI - Python/FastAPI Backend
+BeyondCloud - Python/FastAPI Backend
 Phase 0-4: Multi-Backend LLM + RAG + Tracing
 """
 from fastapi import FastAPI
@@ -11,6 +11,7 @@ from app.config import get_settings
 from app.routers import providers
 from app.routers import rag
 from app.routers import query
+from app.routers import agent
 from app.database import init_database
 
 settings = get_settings()
@@ -24,7 +25,7 @@ async def lifespan(app: FastAPI):
     print(f"""
 ╔═══════════════════════════════════════════════════════════╗
 ║                                                           ║
-║   🦙 llama.cpp Auth WebUI - Python AI Service             ║
+║   🌐 BeyondCloud - Python AI Service                      ║
 ║                                                           ║
 ║   Server running on http://localhost:{settings.port}               ║
 ║   Default LLM: {settings.default_llm_provider.ljust(11)}                           ║
@@ -48,6 +49,13 @@ async def lifespan(app: FastAPI):
 ║   - POST /api/query/confirm                               ║
 ║   - POST /api/query/process-and-retrieve                  ║
 ║                                                           ║
+║   Phase 5 - Agentic Tools:                                ║
+║   - POST /api/agent/set-sandbox                           ║
+║   - POST /api/agent/set-mode                              ║
+║   - POST /api/agent/execute                               ║
+║   - POST /api/agent/approve/:id                           ║
+║   - GET  /api/agent/status                                ║
+║                                                           ║
 ╚═══════════════════════════════════════════════════════════╝
     """)
     
@@ -58,7 +66,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="llama.cpp Auth WebUI - AI Service",
+    title="BeyondCloud - AI Service",
     description="Python AI Service for RAG, Agents, and Memory",
     version="1.0.0",
     lifespan=lifespan,
@@ -99,6 +107,9 @@ app.include_router(rag.router, prefix="/api")
 
 # Query preprocessing routes (Phase 4)
 app.include_router(query.router, prefix="/api")
+
+# Agent routes (Phase 5)
+app.include_router(agent.router)
 
 # Models endpoint (convenience alias)
 @app.get("/api/models")
