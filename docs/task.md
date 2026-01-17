@@ -66,15 +66,10 @@
 | 3 | Data Migration | ✅ Done (Hybrid) |
 | 4 | RAG & Tracing (Basic) | ✅ Done |
 | 5 | Agents & Tools | ✅ Done (Core) |
-| **6** | **MCP Integration** | 🚧 Next |
-| 7 | RAG Advanced (UI Options) | To Do |
+| 6 | MCP Integration | ✅ Done |
+| **7** | **RAG Advanced (UI Options)** | 🚧 Next |
 | 8 | Agents Advanced (Tools & Memory) | To Do |
-| 9 | Security & Production | To Do |
-
-### Phase 6: MCP Integration
-- External tool server connections
-- Tool discovery and execution
-- Frontend server management UI
+| 9 | Security & Production | ✅ RBAC Done |
 
 ### Phase 7: RAG Advanced (User Options)
 - **Chunking Options**: chunk size, overlap, sentence boundary, semantic chunking
@@ -91,7 +86,7 @@
 - **Multi-step Planning**: Task decomposition, sub-goal tracking
 
 ### Phase 9 Planned (Security)
-- **RBAC**: Role-based access control (user, rag_user, agent_user, admin, owner)
+- ✅ **RBAC**: Role-based access control (user, rag_user, agent_user, admin, owner)
 - Rate limiting, API key management
 - Production hardening
 
