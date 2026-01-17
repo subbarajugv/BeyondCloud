@@ -368,48 +368,161 @@ If the query is already optimal, respond with the exact same query."""
             )
 
     # ========================================================================
-    # FUTURE IMPLEMENTATIONS (Placeholder methods)
+    # Advanced Query Optimization Methods
     # ========================================================================
     
-    # async def _expand_query(self, query: str) -> tuple[str, List[Dict[str, str]]]:
-    #     """
-    #     FUTURE: Expand query with synonyms and related terms
-    #     
-    #     Implementation options:
-    #     1. WordNet for synonyms
-    #     2. Domain-specific thesaurus
-    #     3. Embedding-based similarity
-    #     
-    #     Example:
-    #         "auth errors" -> "authentication authorization errors failures issues"
-    #     """
-    #     pass
+    async def expand_query(self, query: str) -> tuple[str, List[Dict[str, str]]]:
+        """
+        Expand query with synonyms and related terms using LLM
+        
+        Example:
+            "auth errors" -> "authentication authorization errors failures issues"
+        """
+        async with create_span("query.expand") as span:
+            from app.services.provider_service import provider_service
+            
+            prompt = f"""Expand this search query with synonyms and related terms.
+Add relevant alternative words that might appear in documents about this topic.
+Keep the original terms and add 3-5 related terms.
+
+Query: {query}
+
+Respond with ONLY the expanded query, no explanation."""
+
+            try:
+                response = await provider_service.chat_completion(
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.3,
+                    max_tokens=100,
+                )
+                expanded = response.get("content", query).strip()
+                
+                if expanded != query:
+                    span.set_attribute("expanded", True)
+                    return expanded, [{"type": "expansion", "original": query, "corrected": expanded}]
+                return query, []
+            except Exception as e:
+                span.set_attribute("error", str(e))
+                return query, []
     
-    # async def _decompose_query(self, query: str) -> List[str]:
-    #     """
-    #     FUTURE: Break complex queries into sub-queries
-    #     
-    #     Useful for multi-hop reasoning:
-    #         "How does auth differ between v1 and v2?"
-    #         -> ["How does auth work in v1?", "How does auth work in v2?"]
-    #     
-    #     Then merge results from both retrievals.
-    #     """
-    #     pass
+    async def decompose_query(self, query: str) -> List[str]:
+        """
+        Break complex queries into sub-queries for multi-hop reasoning
+        
+        Example:
+            "How does auth differ between v1 and v2?"
+            -> ["How does auth work in v1?", "How does auth work in v2?"]
+        """
+        async with create_span("query.decompose") as span:
+            from app.services.provider_service import provider_service
+            
+            prompt = f"""Analyze if this query needs to be broken into sub-queries.
+If the query compares things, asks about multiple topics, or requires step-by-step reasoning,
+break it into 2-4 simpler sub-queries.
+If the query is already simple, return just the original query.
+
+Query: {query}
+
+Respond with one sub-query per line, no numbering or bullets."""
+
+            try:
+                response = await provider_service.chat_completion(
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.3,
+                    max_tokens=200,
+                )
+                
+                lines = response.get("content", query).strip().split("\n")
+                sub_queries = [line.strip() for line in lines if line.strip()]
+                
+                span.set_attribute("sub_query_count", len(sub_queries))
+                return sub_queries if sub_queries else [query]
+            except Exception as e:
+                span.set_attribute("error", str(e))
+                return [query]
     
-    # async def _generate_hypothetical_doc(self, query: str) -> str:
-    #     """
-    #     FUTURE: HyDE - Generate hypothetical document for embedding
-    #     
-    #     Instead of embedding the query, generate what an ideal
-    #     answer document would look like, then embed that.
-    #     
-    #     This bridges the query-document semantic gap.
-    #     
-    #     Paper: https://arxiv.org/abs/2212.10496
-    #     """
-    #     pass
+    async def generate_hypothetical_doc(self, query: str) -> str:
+        """
+        HyDE - Generate hypothetical document for embedding
+        
+        Instead of embedding the query, generate what an ideal
+        answer document would look like, then embed that.
+        This bridges the query-document semantic gap.
+        
+        Paper: https://arxiv.org/abs/2212.10496
+        """
+        async with create_span("query.hyde") as span:
+            from app.services.provider_service import provider_service
+            
+            prompt = f"""Write a short paragraph that would be the perfect answer to this question.
+Write as if it's an excerpt from a technical document or knowledge base.
+Be specific and informative, about 100 words.
+
+Question: {query}"""
+
+            try:
+                response = await provider_service.chat_completion(
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.5,
+                    max_tokens=200,
+                )
+                
+                hyde_doc = response.get("content", "").strip()
+                span.set_attribute("hyde_length", len(hyde_doc))
+                return hyde_doc
+            except Exception as e:
+                span.set_attribute("error", str(e))
+                return query  # Fallback to original query
+    
+    async def detect_intent(self, query: str) -> Dict[str, Any]:
+        """
+        Detect query intent/type for better routing
+        
+        Intent types:
+        - factual: Looking for specific facts
+        - comparative: Comparing two things
+        - procedural: How-to questions
+        - conceptual: Explanation of concepts
+        - troubleshooting: Problem solving
+        """
+        async with create_span("query.intent") as span:
+            from app.services.provider_service import provider_service
+            
+            prompt = f"""Classify this query into one intent type.
+
+Query: {query}
+
+Intent types:
+- factual: Looking for specific facts or data
+- comparative: Comparing two or more things
+- procedural: How-to or step-by-step questions
+- conceptual: Asking for explanations
+- troubleshooting: Solving a problem
+
+Respond with JSON: {{"intent": "type", "confidence": 0.0-1.0, "keywords": ["key", "words"]}}"""
+
+            try:
+                response = await provider_service.chat_completion(
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.2,
+                    max_tokens=100,
+                )
+                
+                import json
+                content = response.get("content", "").strip()
+                # Extract JSON from response
+                if "{" in content:
+                    json_str = content[content.find("{"):content.rfind("}")+1]
+                    result = json.loads(json_str)
+                    span.set_attribute("intent", result.get("intent", "unknown"))
+                    return result
+                    
+                return {"intent": "factual", "confidence": 0.5, "keywords": []}
+            except Exception as e:
+                span.set_attribute("error", str(e))
+                return {"intent": "unknown", "confidence": 0.0, "keywords": []}
 
 
 # Singleton service instance
 query_service = QueryService()
+

@@ -247,3 +247,75 @@ async def delete_source(
     if not deleted:
         raise HTTPException(404, "Source not found")
     return {"message": "Source deleted successfully"}
+
+
+# ========== RAG Settings Endpoints ==========
+
+from app.schemas.rag_settings import RAGSettingsBase, RAGSettingsUpdate, RAGSettingsResponse
+from sqlalchemy import text
+
+
+@router.get("/settings")
+async def get_settings(
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+):
+    """Get user's RAG settings"""
+    result = await db.execute(
+        text("SELECT * FROM rag_settings WHERE user_id = :user_id"),
+        {"user_id": user_id}
+    )
+    row = result.fetchone()
+    
+    if not row:
+        # Return defaults
+        return RAGSettingsBase().model_dump()
+    
+    return dict(row._mapping)
+
+
+@router.put("/settings")
+async def update_settings(
+    settings: RAGSettingsUpdate,
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+):
+    """Update user's RAG settings (upsert)"""
+    # Filter out None values
+    updates = {k: v for k, v in settings.model_dump().items() if v is not None}
+    
+    if not updates:
+        raise HTTPException(400, "No settings provided")
+    
+    # Check if settings exist
+    result = await db.execute(
+        text("SELECT user_id FROM rag_settings WHERE user_id = :user_id"),
+        {"user_id": user_id}
+    )
+    exists = result.fetchone() is not None
+    
+    if exists:
+        # Update
+        set_clause = ", ".join(f"{k} = :{k}" for k in updates.keys())
+        await db.execute(
+            text(f"UPDATE rag_settings SET {set_clause}, updated_at = NOW() WHERE user_id = :user_id"),
+            {"user_id": user_id, **updates}
+        )
+    else:
+        # Insert with defaults + updates
+        defaults = RAGSettingsBase().model_dump()
+        defaults.update(updates)
+        
+        columns = ["user_id"] + list(defaults.keys())
+        values = [":user_id"] + [f":{k}" for k in defaults.keys()]
+        
+        await db.execute(
+            text(f"INSERT INTO rag_settings ({', '.join(columns)}) VALUES ({', '.join(values)})"),
+            {"user_id": user_id, **defaults}
+        )
+    
+    await db.commit()
+    
+    # Return updated settings
+    return await get_settings(db, user_id)
+
