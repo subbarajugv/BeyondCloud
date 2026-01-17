@@ -430,7 +430,12 @@ def get_tools():
 
 @app.post("/api/agent/execute")
 def execute_tool(request: ExecuteToolRequest):
+    import time
+    start_time = time.time()
+    trace_id = str(uuid.uuid4())[:8]
+    
     if state.tools is None:
+        print(f"[Trace] ❌ agent.execute tool={request.tool_name} error='Working directory not set' trace={trace_id}")
         raise HTTPException(status_code=400, detail="Working directory not set")
     
     tool_name = request.tool_name
@@ -458,6 +463,9 @@ def execute_tool(request: ExecuteToolRequest):
         )
         state.pending_calls[call_id] = pending
         
+        duration_ms = (time.time() - start_time) * 1000
+        print(f"[Trace] ⏳ agent.execute tool={tool_name} status=pending_approval safety={safety_level} ({duration_ms:.2f}ms) trace={trace_id}")
+        
         return {
             "status": "pending_approval",
             "call_id": call_id,
@@ -469,26 +477,39 @@ def execute_tool(request: ExecuteToolRequest):
     
     # Execute the tool
     tools = state.tools
+    result = None
+    error = None
     
-    if tool_name == "read_file":
-        result = tools.read_file(args.get("path", ""))
-    elif tool_name == "write_file":
-        result = tools.write_file(args.get("path", ""), args.get("content", ""))
-    elif tool_name == "list_dir":
-        result = tools.list_dir(args.get("path", "."))
-    elif tool_name == "search_files":
-        result = tools.search_files(args.get("pattern", "*"), args.get("path", "."))
-    elif tool_name == "run_command":
-        result = tools.run_command(args.get("cmd", ""))
-    else:
-        raise HTTPException(status_code=400, detail=f"Unknown tool: {tool_name}")
+    try:
+        if tool_name == "read_file":
+            result = tools.read_file(args.get("path", ""))
+        elif tool_name == "write_file":
+            result = tools.write_file(args.get("path", ""), args.get("content", ""))
+        elif tool_name == "list_dir":
+            result = tools.list_dir(args.get("path", "."))
+        elif tool_name == "search_files":
+            result = tools.search_files(args.get("pattern", "*"), args.get("path", "."))
+        elif tool_name == "run_command":
+            result = tools.run_command(args.get("cmd", ""))
+        else:
+            raise HTTPException(status_code=400, detail=f"Unknown tool: {tool_name}")
+        
+        error = result.get("error") if result else None
+    except Exception as e:
+        error = str(e)
+        result = {"error": error}
+    
+    duration_ms = (time.time() - start_time) * 1000
+    status = "error" if error else "success"
+    status_icon = "❌" if error else "✅"
+    print(f"[Trace] {status_icon} agent.execute tool={tool_name} status={status} ({duration_ms:.2f}ms) trace={trace_id}")
     
     return {
-        "status": "error" if "error" in result else "success",
+        "status": status,
         "tool_name": tool_name,
         "args": args,
         "result": result,
-        "error": result.get("error")
+        "error": error
     }
 
 

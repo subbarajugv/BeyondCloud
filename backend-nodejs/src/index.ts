@@ -9,7 +9,7 @@ import conversationsRouter from './routes/conversations';
 import settingsRouter from './routes/settings';
 import chatRouter from './routes/chat';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
-import { testConnection, initializeDatabase } from './db';
+import { testConnection, initializeDatabase, pool } from './db';
 import { traceMiddleware } from './tracing';
 
 const app = express();
@@ -103,6 +103,20 @@ async function startServer() {
         process.exit(1);
     }
 
+    // Start periodic trace export to database (every 30 seconds)
+    const TRACE_EXPORT_INTERVAL_MS = 30_000;
+    setInterval(async () => {
+        try {
+            const { exportSpansToDb } = await import('./tracing');
+            const count = await exportSpansToDb(pool);
+            if (count > 0) {
+                console.log(`[Tracing] Exported ${count} spans to database`);
+            }
+        } catch (error) {
+            console.error('[Tracing] Failed to export spans:', error);
+        }
+    }, TRACE_EXPORT_INTERVAL_MS);
+
     app.listen(PORT, () => {
         console.log(`
 ╔═══════════════════════════════════════════════════════════╗
@@ -112,6 +126,7 @@ async function startServer() {
 ║   Server running on http://localhost:${PORT}               ║
 ║   Environment: ${config.nodeEnv.padEnd(11)}                           ║
 ║   Database: Connected                                     ║
+║   Tracing: Enabled (export every 30s)                     ║
 ║                                                           ║
 ║   Phase 0 - Providers:                                    ║
 ║   - GET  /api/health                                      ║
