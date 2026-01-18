@@ -45,6 +45,9 @@
 	let titleUpdateNewTitle = $state('');
 	let titleUpdateResolve: ((value: boolean) => void) | null = null;
 	let showUserMenu = $state(false);
+	let showAnalyticsDialog = $state(false);
+
+	import { DialogUsageAnalytics } from '$lib/components/app';
 
 	// Logout handler
 	function handleLogout() {
@@ -137,6 +140,8 @@
 	});
 </script>
 
+<DialogUsageAnalytics bind:open={showAnalyticsDialog} />
+
 <DialogConversationTitleUpdate
 	bind:open={titleUpdateDialogOpen}
 	currentTitle={titleUpdateCurrentTitle}
@@ -178,6 +183,18 @@
 							<p class="text-sm font-medium text-white">{authStore.user?.displayName || 'User'}</p>
 							<p class="text-xs text-slate-400">{authStore.user?.email}</p>
 						</div>
+						<button
+							onclick={() => { showAnalyticsDialog = true; showUserMenu = false; }}
+							class="flex w-full items-center gap-2 px-4 py-2 text-sm text-slate-300 transition-colors hover:bg-slate-700"
+						>
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+								<path d="M3 3v18h18"></path>
+								<path d="M18 17V9"></path>
+								<path d="M13 17V5"></path>
+								<path d="M8 17v-3"></path>
+							</svg>
+							Usage Analytics
+						</button>
 						<button
 							onclick={handleLogout}
 							class="flex w-full items-center gap-2 px-4 py-2 text-sm text-red-400 transition-colors hover:bg-slate-700"
