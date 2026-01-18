@@ -24,6 +24,7 @@ settings = get_settings()
 setup_logging(
     level=os.getenv("LOG_LEVEL", "INFO"),
     json_format=os.getenv("LOG_FORMAT", "").lower() == "json",
+    log_file=os.getenv("LOG_FILE"),  # e.g., /var/log/beyondcloud.log
 )
 logger = get_logger(__name__)
 
