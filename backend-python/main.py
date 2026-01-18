@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from datetime import datetime
 import os
+import logging
 
 from app.config import get_settings
 from app.routers import providers
@@ -34,6 +35,13 @@ async def lifespan(app: FastAPI):
     """Startup and shutdown events"""
     # Startup
     await init_database()
+    
+    # Enable DB logging if configured
+    if os.getenv("DB_LOGGING", "").lower() == "true":
+        from app.db_log_handler import add_db_handler
+        add_db_handler(min_level=logging.INFO)
+        logger.info("Database logging enabled")
+    
     logger.info(f"Server starting on port {settings.port}")
     print(f"""
 ╔═══════════════════════════════════════════════════════════╗
@@ -138,6 +146,10 @@ app.include_router(agent.router)
 
 # MCP routes (Phase 6)
 app.include_router(mcp.router)
+
+# Usage routes (Analytics)
+from app.routers import usage
+app.include_router(usage.router, prefix="/api")
 
 # Models endpoint (convenience alias)
 @app.get("/api/models")
