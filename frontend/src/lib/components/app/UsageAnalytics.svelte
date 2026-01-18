@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { authStore } from '$lib/stores/auth';
+  import { authStore } from '$lib/stores/auth.svelte';
   
   interface UsageStats {
     rag_queries: number;
@@ -22,18 +22,18 @@
     llm_requests: number;
   }
   
-  let stats: UsageStats | null = null;
-  let dailyData: DailyData[] = [];
-  let loading = true;
-  let error = '';
-  let periodDays = 30;
+  let stats = $state<UsageStats | null>(null);
+  let dailyData = $state<DailyData[]>([]);
+  let loading = $state(true);
+  let error = $state('');
+  let periodDays = $state(30);
   
   async function fetchStats() {
     loading = true;
     error = '';
     
     try {
-      const token = $authStore.token;
+      const token = authStore.token;
       const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
       
       // Fetch aggregated stats
@@ -65,7 +65,7 @@
     return n.toString();
   }
   
-  $: maxValue = Math.max(...dailyData.map(d => d.rag_queries + d.agent_tool_calls + d.llm_requests), 1);
+  let maxValue = $derived(Math.max(...dailyData.map(d => d.rag_queries + d.agent_tool_calls + d.llm_requests), 1));
 </script>
 
 <div class="usage-analytics">
