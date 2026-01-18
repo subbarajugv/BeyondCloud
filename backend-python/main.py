@@ -1,11 +1,12 @@
 """
 BeyondCloud - Python/FastAPI Backend
-Phase 0-4: Multi-Backend LLM + RAG + Tracing
+Phase 0-8: Multi-Backend LLM + RAG + Tracing + Agents
 """
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from datetime import datetime
+import os
 
 from app.config import get_settings
 from app.routers import providers
@@ -14,8 +15,17 @@ from app.routers import query
 from app.routers import agent
 from app.routers import mcp
 from app.database import init_database
+from app.logging_config import setup_logging, get_logger
+from app.errors import APIError, api_error_handler, http_exception_handler, general_exception_handler
 
 settings = get_settings()
+
+# Setup logging (JSON in production, color in dev)
+setup_logging(
+    level=os.getenv("LOG_LEVEL", "INFO"),
+    json_format=os.getenv("LOG_FORMAT", "").lower() == "json",
+)
+logger = get_logger(__name__)
 
 
 @asynccontextmanager
@@ -23,6 +33,7 @@ async def lifespan(app: FastAPI):
     """Startup and shutdown events"""
     # Startup
     await init_database()
+    logger.info(f"Server starting on port {settings.port}")
     print(f"""
 ╔═══════════════════════════════════════════════════════════╗
 ║                                                           ║
@@ -79,6 +90,11 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+# Register error handlers
+app.add_exception_handler(APIError, api_error_handler)
+app.add_exception_handler(HTTPException, http_exception_handler)
+app.add_exception_handler(Exception, general_exception_handler)
 
 # =============================================================================
 # Middleware
