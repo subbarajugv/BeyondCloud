@@ -1,7 +1,7 @@
 /**
  * RAG Store - State management for document ingestion and retrieval
  */
-import { ragApi, type RAGSource, type RAGChunk, type QueryResponse } from '$lib/services/ragApi';
+import { ragApi, type RAGSource, type RAGChunk, type QueryResponse, type VisibilityType } from '$lib/services/ragApi';
 import { browser } from '$app/environment';
 import { toast } from 'svelte-sonner';
 
@@ -12,6 +12,19 @@ class RAGStore {
     selectedSourceIds = $state<string[]>([]);
     lastQueryResult = $state<QueryResponse | null>(null);
     error = $state<string | null>(null);
+
+    // Computed: Separate private and shared sources
+    get privateSources(): RAGSource[] {
+        return this.sources.filter(s => s.visibility === 'private');
+    }
+
+    get sharedSources(): RAGSource[] {
+        return this.sources.filter(s => s.visibility === 'shared');
+    }
+
+    get ownedSources(): RAGSource[] {
+        return this.sources.filter(s => s.is_owner === true);
+    }
 
     constructor() {
         if (browser) {
@@ -43,7 +56,8 @@ class RAGStore {
         name: string,
         content: string,
         chunkSize: number = 500,
-        chunkOverlap: number = 50
+        chunkOverlap: number = 50,
+        visibility: VisibilityType = 'private'
     ): Promise<boolean> {
         this.isUploading = true;
         this.error = null;
@@ -52,7 +66,8 @@ class RAGStore {
                 name,
                 content,
                 chunk_size: chunkSize,
-                chunk_overlap: chunkOverlap
+                chunk_overlap: chunkOverlap,
+                visibility
             });
             toast.success(`Ingested ${result.chunk_count} chunks from "${name}"`);
             await this.loadSources();
@@ -73,12 +88,13 @@ class RAGStore {
     async ingestFile(
         file: File,
         chunkSize: number = 500,
-        chunkOverlap: number = 50
+        chunkOverlap: number = 50,
+        visibility: VisibilityType = 'private'
     ): Promise<boolean> {
         this.isUploading = true;
         this.error = null;
         try {
-            const result = await ragApi.ingestFile(file, chunkSize, chunkOverlap);
+            const result = await ragApi.ingestFile(file, chunkSize, chunkOverlap, visibility);
             toast.success(`Ingested ${result.chunk_count} chunks from "${file.name}"`);
             await this.loadSources();
             return true;
@@ -105,6 +121,28 @@ class RAGStore {
         } catch (e) {
             const error = e as Error;
             toast.error(`Failed to delete: ${error.message}`);
+            return false;
+        }
+    }
+
+    /**
+     * Update source visibility (admin only)
+     */
+    async updateVisibility(sourceId: string, visibility: VisibilityType): Promise<boolean> {
+        try {
+            await ragApi.updateSourceVisibility(sourceId, visibility);
+            // Update local state
+            const source = this.sources.find(s => s.id === sourceId);
+            if (source) {
+                source.visibility = visibility;
+                // Trigger reactivity
+                this.sources = [...this.sources];
+            }
+            toast.success(`Source visibility updated to "${visibility}"`);
+            return true;
+        } catch (e) {
+            const error = e as Error;
+            toast.error(`Failed to update visibility: ${error.message}`);
             return false;
         }
     }
@@ -172,3 +210,4 @@ class RAGStore {
 }
 
 export const ragStore = new RAGStore();
+

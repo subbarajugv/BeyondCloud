@@ -9,12 +9,14 @@ import uuid
 from app.database import get_db
 from app.schemas.rag import (
     SourceResponse, IngestRequest, IngestResponse,
-    QueryRequest, QueryResponse, RetrieveRequest, ChunkResponse, Citation
+    QueryRequest, QueryResponse, RetrieveRequest, ChunkResponse, Citation,
+    VisibilityUpdate
 )
 from app.services.rag_service import rag_service
 from app.services.answer_service import answer_service
 from app.tracing import export_spans_to_db
 from app.auth import get_current_user_id
+from app.role_check import get_current_user_with_role, require_min_role, has_min_role, UserWithRole
 
 router = APIRouter(prefix="/rag", tags=["RAG"])
 
@@ -24,7 +26,7 @@ async def list_sources(
     db: AsyncSession = Depends(get_db),
     user_id: str = Depends(get_current_user_id),
 ):
-    """List all document sources for the current user"""
+    """List all document sources accessible to the current user (private + shared)"""
     sources = await rag_service.list_sources(db, user_id)
     await export_spans_to_db(db)
     return sources
@@ -34,16 +36,30 @@ async def list_sources(
 async def ingest_text(
     request: IngestRequest,
     db: AsyncSession = Depends(get_db),
-    user_id: str = Depends(get_current_user_id),
+    user: UserWithRole = Depends(get_current_user_with_role),
 ):
-    """Ingest text content into the RAG system"""
+    """
+    Ingest text content into the RAG system.
+    
+    Visibility options:
+    - private: Only the user can see this source (default)
+    - shared: All users can see this source (requires admin role)
+    """
+    # Only admins can create shared sources
+    if request.visibility == "shared" and not has_min_role(user.role, "admin"):
+        raise HTTPException(
+            status_code=403,
+            detail="Only admins can create shared knowledge bases"
+        )
+    
     result = await rag_service.ingest_text(
         db=db,
-        user_id=user_id,
+        user_id=user.id,
         name=request.name,
         content=request.content,
         chunk_size=request.chunk_size,
         chunk_overlap=request.chunk_overlap,
+        visibility=request.visibility,
         metadata=request.metadata,
     )
     await export_spans_to_db(db)
@@ -54,16 +70,29 @@ async def ingest_text(
         message=f"Successfully ingested {result['chunk_count']} chunks",
     )
 
-
 @router.post("/ingest/file", response_model=IngestResponse)
 async def ingest_file(
     file: UploadFile = File(...),
     chunk_size: int = Form(500),
     chunk_overlap: int = Form(50),
+    visibility: str = Form("private"),
     db: AsyncSession = Depends(get_db),
-    user_id: str = Depends(get_current_user_id),
+    user: UserWithRole = Depends(get_current_user_with_role),
 ):
-    """Upload and ingest a document file"""
+    """
+    Upload and ingest a document file.
+    
+    Visibility options:
+    - private: Only the user can see this source (default)
+    - shared: All users can see this source (requires admin role)
+    """
+    # Only admins can create shared sources
+    if visibility == "shared" and not has_min_role(user.role, "admin"):
+        raise HTTPException(
+            status_code=403,
+            detail="Only admins can create shared knowledge bases"
+        )
+    
     # Read file content
     content = await file.read()
     
@@ -103,11 +132,12 @@ async def ingest_file(
     
     result = await rag_service.ingest_text(
         db=db,
-        user_id=user_id,
+        user_id=user.id,
         name=filename,
         content=text_content,
         chunk_size=chunk_size,
         chunk_overlap=chunk_overlap,
+        visibility=visibility,
         metadata={"original_filename": filename, "file_size": len(content)},
     )
     await export_spans_to_db(db)
@@ -236,13 +266,68 @@ async def query(
 async def delete_source(
     source_id: str,
     db: AsyncSession = Depends(get_db),
-    user_id: str = Depends(get_current_user_id),
+    user: UserWithRole = Depends(get_current_user_with_role),
 ):
-    """Delete a document source and all its chunks"""
-    deleted = await rag_service.delete_source(db, user_id, source_id)
+    """
+    Delete a document source and all its chunks.
+    
+    - Users can only delete their own sources
+    - Admins can delete any source
+    """
+    # Check if user owns the source or is an admin
+    source = await rag_service.get_source(db, source_id)
+    if not source:
+        raise HTTPException(404, "Source not found")
+    
+    is_owner = source["user_id"] == user.id
+    is_admin = has_min_role(user.role, "admin")
+    
+    if not is_owner and not is_admin:
+        raise HTTPException(403, "You can only delete your own sources")
+    
+    # For owners, use their ID; for admins deleting others' sources, bypass ownership check
+    if is_owner:
+        deleted = await rag_service.delete_source(db, user.id, source_id)
+    else:
+        # Admin deleting someone else's source - bypass ownership check
+        from sqlalchemy import text
+        result = await db.execute(
+            text("DELETE FROM rag_sources WHERE id = :source_id RETURNING id"),
+            {"source_id": source_id}
+        )
+        await db.commit()
+        deleted = result.rowcount > 0
+    
     if not deleted:
         raise HTTPException(404, "Source not found")
     return {"message": "Source deleted successfully"}
+
+
+@router.put("/sources/{source_id}/visibility")
+async def update_source_visibility(
+    source_id: str,
+    request: VisibilityUpdate,
+    db: AsyncSession = Depends(get_db),
+    user: UserWithRole = Depends(require_min_role("admin")),
+):
+    """
+    Update source visibility (admin only).
+    
+    Change a source between private and shared visibility.
+    """
+    source = await rag_service.get_source(db, source_id)
+    if not source:
+        raise HTTPException(404, "Source not found")
+    
+    updated = await rag_service.update_visibility(db, source_id, request.visibility)
+    if not updated:
+        raise HTTPException(500, "Failed to update visibility")
+    
+    return {
+        "message": f"Source visibility updated to '{request.visibility}'",
+        "source_id": source_id,
+        "visibility": request.visibility
+    }
 
 
 # ========== RAG Settings Endpoints ==========

@@ -2,10 +2,13 @@
  * Authentication types for frontend
  */
 
+export type UserRole = 'user' | 'rag_user' | 'agent_user' | 'admin' | 'owner';
+
 export interface User {
     id: string;
     email: string;
     displayName: string | null;
+    role?: UserRole;  // RBAC role - may not be present for legacy tokens
 }
 
 export interface LoginCredentials {

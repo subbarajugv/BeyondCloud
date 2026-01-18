@@ -2,9 +2,12 @@
 RAG Schemas - Request/Response models for RAG endpoints
 """
 from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Literal
 from datetime import datetime
 from uuid import UUID
+
+# Visibility options for RAG sources
+VisibilityType = Literal['private', 'shared']
 
 
 class SourceCreate(BaseModel):
@@ -20,10 +23,12 @@ class SourceResponse(BaseModel):
     user_id: UUID
     name: str
     type: str
+    visibility: str = "private"  # private or shared
     file_size: Optional[int] = None
     chunk_count: int = 0
     metadata: Dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
+    is_owner: Optional[bool] = None  # True if current user owns this source
 
 
 class ChunkResponse(BaseModel):
@@ -41,6 +46,7 @@ class IngestRequest(BaseModel):
     content: str
     chunk_size: int = 500
     chunk_overlap: int = 50
+    visibility: VisibilityType = "private"  # private or shared (admin only)
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
@@ -95,3 +101,9 @@ class RetrieveRequest(BaseModel):
     use_hybrid: bool = Field(default=False, description="Use BM25+vector hybrid search")
     use_reranking: bool = Field(default=False, description="Apply cross-encoder reranking")
     bm25_weight: float = Field(default=0.3, ge=0, le=1, description="BM25 weight in hybrid search")
+
+
+class VisibilityUpdate(BaseModel):
+    """Request to update source visibility (admin only)"""
+    visibility: VisibilityType
+

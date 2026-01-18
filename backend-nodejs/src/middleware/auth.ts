@@ -15,6 +15,7 @@ export interface AuthenticatedRequest extends Request {
         id: string;
         email: string;
         displayName: string | null;
+        role: string;  // RBAC role: user, rag_user, agent_user, admin, owner
     };
 }
 
@@ -43,8 +44,8 @@ export async function authenticateToken(
         const payload = jwt.verify(token, config.jwtSecret) as JwtPayload;
 
         // Fetch user from database
-        const users = await query<{ id: string; email: string; display_name: string | null }>(
-            'SELECT id, email, display_name FROM users WHERE id = $1',
+        const users = await query<{ id: string; email: string; display_name: string | null; role: string }>(
+            'SELECT id, email, display_name, role FROM users WHERE id = $1',
             [payload.userId]
         );
 
@@ -62,6 +63,7 @@ export async function authenticateToken(
             id: users[0].id,
             email: users[0].email,
             displayName: users[0].display_name,
+            role: users[0].role || 'user',
         };
 
         next();
@@ -103,8 +105,8 @@ export async function optionalAuth(
     try {
         const payload = jwt.verify(token, config.jwtSecret) as JwtPayload;
 
-        const users = await query<{ id: string; email: string; display_name: string | null }>(
-            'SELECT id, email, display_name FROM users WHERE id = $1',
+        const users = await query<{ id: string; email: string; display_name: string | null; role: string }>(
+            'SELECT id, email, display_name, role FROM users WHERE id = $1',
             [payload.userId]
         );
 
@@ -113,6 +115,7 @@ export async function optionalAuth(
                 id: users[0].id,
                 email: users[0].email,
                 displayName: users[0].display_name,
+                role: users[0].role || 'user',
             };
         }
     } catch {

@@ -2,12 +2,20 @@
  * Auth Store - Manages authentication state
  */
 import { authApi, setAccessToken, signalAuthReady } from '$lib/services/api';
-import type { LoginCredentials, RegisterCredentials, User } from '$lib/types/auth';
+import type { LoginCredentials, RegisterCredentials, User, UserRole } from '$lib/types/auth';
 import { browser } from '$app/environment';
 import { syncFromApi, setAuthenticated } from '$lib/stores/settings.svelte';
 
 const TOKEN_KEY = 'auth_token';
 const USER_KEY = 'auth_user';
+
+// Role hierarchy for permission checks
+const ROLE_HIERARCHY: UserRole[] = ['user', 'rag_user', 'agent_user', 'admin', 'owner'];
+
+function getRoleLevel(role: UserRole): number {
+    const level = ROLE_HIERARCHY.indexOf(role);
+    return level >= 0 ? level : 0;
+}
 
 class AuthStore {
     user = $state<User | null>(null);
@@ -15,6 +23,30 @@ class AuthStore {
     isAuthenticated = $derived(!!this.token);
     isLoading = $state(true);
     error = $state<string | null>(null);
+
+    // Role-based computed properties
+    get userRole(): UserRole {
+        return this.user?.role ?? 'user';
+    }
+
+    get isAdmin(): boolean {
+        return getRoleLevel(this.userRole) >= getRoleLevel('admin');
+    }
+
+    get isOwner(): boolean {
+        return this.userRole === 'owner';
+    }
+
+    get canManageSharedRAG(): boolean {
+        return this.isAdmin;
+    }
+
+    /**
+     * Check if user has at least the specified role level
+     */
+    hasMinRole(minRole: UserRole): boolean {
+        return getRoleLevel(this.userRole) >= getRoleLevel(minRole);
+    }
 
     /**
      * Promise that resolves when auth state is fully restored from localStorage.

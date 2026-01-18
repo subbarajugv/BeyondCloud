@@ -3,18 +3,39 @@
  * Handles document ingestion, retrieval, and querying
  */
 
+import { getAccessToken } from './api';
+
 // Python AI Service base URL
 const RAG_API_BASE = 'http://localhost:8001/api';
 
+/**
+ * Get headers with auth token for authenticated requests
+ */
+function getAuthHeaders(includeContentType = true): HeadersInit {
+    const headers: HeadersInit = {};
+    const token = getAccessToken();
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+    if (includeContentType) {
+        headers['Content-Type'] = 'application/json';
+    }
+    return headers;
+}
+
 // Types
+export type VisibilityType = 'private' | 'shared';
+
 export interface RAGSource {
     id: string;
     name: string;
     type: string;
+    visibility: VisibilityType;
     chunk_count: number;
     file_size?: number;
     metadata?: Record<string, unknown>;
     created_at: string;
+    is_owner?: boolean;  // True if current user owns this source
 }
 
 export interface RAGChunk {
@@ -30,6 +51,7 @@ export interface IngestRequest {
     content: string;
     chunk_size?: number;
     chunk_overlap?: number;
+    visibility?: VisibilityType;
     metadata?: Record<string, unknown>;
 }
 
@@ -82,7 +104,9 @@ export const ragApi = {
      * GET /api/rag/sources - List all documents
      */
     async listSources(): Promise<RAGSource[]> {
-        const response = await fetch(`${RAG_API_BASE}/rag/sources`);
+        const response = await fetch(`${RAG_API_BASE}/rag/sources`, {
+            headers: getAuthHeaders()
+        });
         return handleResponse<RAGSource[]>(response);
     },
 
@@ -92,7 +116,7 @@ export const ragApi = {
     async ingestText(request: IngestRequest): Promise<IngestResponse> {
         const response = await fetch(`${RAG_API_BASE}/rag/ingest`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getAuthHeaders(),
             body: JSON.stringify(request)
         });
         return handleResponse<IngestResponse>(response);
@@ -104,15 +128,18 @@ export const ragApi = {
     async ingestFile(
         file: File,
         chunkSize: number = 500,
-        chunkOverlap: number = 50
+        chunkOverlap: number = 50,
+        visibility: VisibilityType = 'private'
     ): Promise<IngestResponse> {
         const formData = new FormData();
         formData.append('file', file);
         formData.append('chunk_size', chunkSize.toString());
         formData.append('chunk_overlap', chunkOverlap.toString());
+        formData.append('visibility', visibility);
 
         const response = await fetch(`${RAG_API_BASE}/rag/ingest/file`, {
             method: 'POST',
+            headers: getAuthHeaders(false),  // No Content-Type for FormData
             body: formData
         });
         return handleResponse<IngestResponse>(response);
@@ -124,7 +151,7 @@ export const ragApi = {
     async query(request: QueryRequest): Promise<QueryResponse> {
         const response = await fetch(`${RAG_API_BASE}/rag/query`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getAuthHeaders(),
             body: JSON.stringify(request)
         });
         return handleResponse<QueryResponse>(response);
@@ -140,7 +167,7 @@ export const ragApi = {
     ): Promise<RAGChunk[]> {
         const response = await fetch(`${RAG_API_BASE}/rag/retrieve`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getAuthHeaders(),
             body: JSON.stringify({ query, top_k: topK, min_score: minScore })
         });
         return handleResponse<RAGChunk[]>(response);
@@ -151,9 +178,25 @@ export const ragApi = {
      */
     async deleteSource(sourceId: string): Promise<{ deleted: boolean }> {
         const response = await fetch(`${RAG_API_BASE}/rag/sources/${sourceId}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            headers: getAuthHeaders()
         });
         return handleResponse<{ deleted: boolean }>(response);
+    },
+
+    /**
+     * PUT /api/rag/sources/{id}/visibility - Update source visibility (admin only)
+     */
+    async updateSourceVisibility(
+        sourceId: string,
+        visibility: VisibilityType
+    ): Promise<{ message: string; source_id: string; visibility: VisibilityType }> {
+        const response = await fetch(`${RAG_API_BASE}/rag/sources/${sourceId}/visibility`, {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ visibility })
+        });
+        return handleResponse<{ message: string; source_id: string; visibility: VisibilityType }>(response);
     }
 };
 

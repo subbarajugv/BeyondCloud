@@ -4,7 +4,6 @@ Authentication Module - JWT validation for Python backend
 Validates JWTs issued by the Node.js backend using the same secret.
 This allows the Python backend to authenticate requests forwarded from Node.js.
 """
-import os
 from typing import Optional, Dict, Any
 from dataclasses import dataclass
 from functools import wraps
@@ -14,12 +13,14 @@ from fastapi import Request, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from app.logging_config import get_logger
+from app.config import get_settings
 
 logger = get_logger(__name__)
 
-# JWT Configuration - must match Node.js backend
-JWT_SECRET = os.getenv("JWT_SECRET", "your-super-secret-jwt-key-change-in-production")
-JWT_ALGORITHM = "HS256"
+# JWT Configuration - loaded from settings (which reads from .env)
+settings = get_settings()
+JWT_SECRET = settings.jwt_secret
+JWT_ALGORITHM = settings.jwt_algorithm
 
 
 @dataclass

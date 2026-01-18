@@ -1,8 +1,10 @@
 <script lang="ts">
 	import { ragStore } from '$lib/stores/ragStore.svelte';
-	import { Upload, FileText, X, Loader2 } from '@lucide/svelte';
+	import { authStore } from '$lib/stores/auth.svelte';
+	import { Upload, FileText, X, Loader2, Globe, Lock } from '@lucide/svelte';
 	import { Button } from '$lib/components/ui/button';
 	import * as Dialog from '$lib/components/ui/dialog';
+	import type { VisibilityType } from '$lib/services/ragApi';
 
 	interface Props {
 		open: boolean;
@@ -17,9 +19,11 @@
 	let selectedFile = $state<File | null>(null);
 	let chunkSize = $state(500);
 	let chunkOverlap = $state(50);
+	let visibility = $state<VisibilityType>('private');
 	let isDragging = $state(false);
 
 	const acceptedTypes = '.txt,.md,.pdf,.docx,.html';
+	const isAdmin = $derived(authStore.isAdmin);
 
 	function reset() {
 		mode = 'file';
@@ -27,6 +31,7 @@
 		textContent = '';
 		selectedFile = null;
 		isDragging = false;
+		visibility = 'private';
 	}
 
 	function handleDragOver(e: DragEvent) {
@@ -57,9 +62,9 @@
 	async function handleUpload() {
 		let success = false;
 		if (mode === 'file' && selectedFile) {
-			success = await ragStore.ingestFile(selectedFile, chunkSize, chunkOverlap);
+			success = await ragStore.ingestFile(selectedFile, chunkSize, chunkOverlap, visibility);
 		} else if (mode === 'text' && textName && textContent) {
-			success = await ragStore.ingestText(textName, textContent, chunkSize, chunkOverlap);
+			success = await ragStore.ingestText(textName, textContent, chunkSize, chunkOverlap, visibility);
 		}
 		if (success) {
 			reset();
@@ -159,6 +164,36 @@
 				</div>
 			{/if}
 
+			<!-- Visibility selector (admin only) -->
+			{#if isAdmin}
+				<div class="rounded-md border bg-muted/30 p-3">
+					<label class="mb-2 block text-sm font-medium">Visibility</label>
+					<div class="flex gap-2">
+						<Button
+							variant={visibility === 'private' ? 'default' : 'outline'}
+							size="sm"
+							onclick={() => (visibility = 'private')}
+						>
+							<Lock class="mr-1.5 h-3.5 w-3.5" />
+							Private
+						</Button>
+						<Button
+							variant={visibility === 'shared' ? 'default' : 'outline'}
+							size="sm"
+							onclick={() => (visibility = 'shared')}
+						>
+							<Globe class="mr-1.5 h-3.5 w-3.5" />
+							Shared
+						</Button>
+					</div>
+					{#if visibility === 'shared'}
+						<p class="mt-2 text-xs text-amber-600 dark:text-amber-400">
+							⚠️ Shared sources are visible to all users
+						</p>
+					{/if}
+				</div>
+			{/if}
+
 			<!-- Chunking settings -->
 			<details class="text-sm">
 				<summary class="cursor-pointer text-muted-foreground hover:text-foreground">
@@ -203,3 +238,4 @@
 		</Dialog.Footer>
 	</Dialog.Content>
 </Dialog.Root>
+

@@ -75,24 +75,29 @@ class RAGService:
         content: str,
         chunk_size: int = 500,
         chunk_overlap: int = 50,
+        visibility: str = "private",
         metadata: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Ingest text content: chunk, embed, and store
+        
+        Args:
+            visibility: 'private' (user only) or 'shared' (all users)
         """
-        async with create_span("rag.ingest", {"name": name, "content_length": len(content)}) as span:
+        async with create_span("rag.ingest", {"name": name, "content_length": len(content), "visibility": visibility}) as span:
             # Create source record
             source_id = uuid.uuid4()
             await db.execute(
                 text("""
-                    INSERT INTO rag_sources (id, user_id, name, type, file_size, metadata)
-                    VALUES (:id, :user_id, :name, :type, :file_size, :metadata)
+                    INSERT INTO rag_sources (id, user_id, name, type, visibility, file_size, metadata)
+                    VALUES (:id, :user_id, :name, :type, :visibility, :file_size, :metadata)
                 """),
                 {
                     "id": str(source_id),
                     "user_id": user_id,
                     "name": name,
                     "type": "text",
+                    "visibility": visibility,
                     "file_size": len(content),
                     "metadata": json.dumps(metadata or {}),
                 }
@@ -151,7 +156,7 @@ class RAGService:
         source_ids: Optional[List[str]] = None,
     ) -> List[Dict[str, Any]]:
         """
-        Vector similarity search
+        Vector similarity search across user's private sources and all shared sources
         """
         async with create_span("rag.retrieve", {"query": query, "top_k": top_k}) as span:
             # Embed query
@@ -173,6 +178,7 @@ class RAGService:
                 params["source_ids"] = [str(sid) for sid in source_ids]
             
             # Vector similarity search using pgvector
+            # Include user's private sources AND all shared sources
             span.add_event("vector_search")
             result = await db.execute(
                 text(f"""
@@ -185,7 +191,7 @@ class RAGService:
                         1 - (c.embedding <=> CAST(:embedding AS vector)) as score
                     FROM rag_chunks c
                     JOIN rag_sources s ON c.source_id = s.id
-                    WHERE s.user_id = :user_id
+                    WHERE (s.user_id = :user_id OR s.visibility = 'shared')
                     {source_filter}
                     AND 1 - (c.embedding <=> CAST(:embedding AS vector)) >= :min_score
                     ORDER BY c.embedding <=> CAST(:embedding AS vector)
@@ -300,13 +306,17 @@ class RAGService:
         db: AsyncSession,
         user_id: str,
     ) -> List[Dict[str, Any]]:
-        """Get all sources for a user"""
+        """
+        Get all sources accessible to a user:
+        - User's own private sources
+        - All shared sources (created by any user)
+        """
         result = await db.execute(
             text("""
-                SELECT id, user_id, name, type, file_size, chunk_count, metadata, created_at
+                SELECT id, user_id, name, type, visibility, file_size, chunk_count, metadata, created_at
                 FROM rag_sources
-                WHERE user_id = :user_id
-                ORDER BY created_at DESC
+                WHERE user_id = :user_id OR visibility = 'shared'
+                ORDER BY visibility ASC, created_at DESC
             """),
             {"user_id": user_id}
         )
@@ -317,10 +327,12 @@ class RAGService:
                 "user_id": str(row["user_id"]),
                 "name": row["name"],
                 "type": row["type"],
+                "visibility": row["visibility"],
                 "file_size": row["file_size"],
                 "chunk_count": row["chunk_count"],
                 "metadata": row["metadata"],
                 "created_at": row["created_at"].isoformat(),
+                "is_owner": str(row["user_id"]) == user_id,
             }
             for row in result.mappings().all()
         ]
@@ -353,8 +365,66 @@ class RAGService:
         )
         await db.commit()
         return result.rowcount > 0
+    
+    async def update_visibility(
+        self,
+        db: AsyncSession,
+        source_id: str,
+        visibility: str,
+    ) -> bool:
+        """
+        Update source visibility (admin only).
+        
+        Args:
+            source_id: The source to update
+            visibility: 'private' or 'shared'
+            
+        Returns:
+            True if updated, False if source not found
+        """
+        result = await db.execute(
+            text("""
+                UPDATE rag_sources
+                SET visibility = :visibility
+                WHERE id = :source_id
+                RETURNING id
+            """),
+            {"source_id": source_id, "visibility": visibility}
+        )
+        await db.commit()
+        return result.rowcount > 0
+    
+    async def get_source(
+        self,
+        db: AsyncSession,
+        source_id: str,
+    ) -> Optional[Dict[str, Any]]:
+        """Get a single source by ID"""
+        result = await db.execute(
+            text("""
+                SELECT id, user_id, name, type, visibility, file_size, chunk_count, metadata, created_at
+                FROM rag_sources
+                WHERE id = :source_id
+            """),
+            {"source_id": source_id}
+        )
+        row = result.mappings().fetchone()
+        if not row:
+            return None
+        return {
+            "id": str(row["id"]),
+            "user_id": str(row["user_id"]),
+            "name": row["name"],
+            "type": row["type"],
+            "visibility": row["visibility"],
+            "file_size": row["file_size"],
+            "chunk_count": row["chunk_count"],
+            "metadata": row["metadata"],
+            "created_at": row["created_at"].isoformat(),
+        }
 
 
 # Singleton service instance
 rag_service = RAGService()
+
 

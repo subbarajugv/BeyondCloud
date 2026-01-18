@@ -73,11 +73,18 @@ async def init_database():
                 user_id UUID NOT NULL,
                 name VARCHAR(255) NOT NULL,
                 type VARCHAR(50) NOT NULL,
+                visibility VARCHAR(20) DEFAULT 'private' NOT NULL,
                 file_size INTEGER,
                 chunk_count INTEGER DEFAULT 0,
                 metadata JSONB DEFAULT '{}',
                 created_at TIMESTAMPTZ DEFAULT NOW()
             )
+        """))
+        
+        # Add visibility column if it doesn't exist (migration for existing tables)
+        await conn.execute(text("""
+            ALTER TABLE rag_sources 
+            ADD COLUMN IF NOT EXISTS visibility VARCHAR(20) DEFAULT 'private' NOT NULL
         """))
         
         # Create RAG chunks table with vector embeddings
@@ -99,6 +106,9 @@ async def init_database():
         """))
         await conn.execute(text("""
             CREATE INDEX IF NOT EXISTS idx_rag_sources_user ON rag_sources(user_id)
+        """))
+        await conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_rag_sources_visibility ON rag_sources(visibility)
         """))
         
         print("✅ Database initialized with pgvector and RAG tables")
