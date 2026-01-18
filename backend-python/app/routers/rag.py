@@ -14,13 +14,9 @@ from app.schemas.rag import (
 from app.services.rag_service import rag_service
 from app.services.answer_service import answer_service
 from app.tracing import export_spans_to_db
+from app.auth import get_current_user_id
 
 router = APIRouter(prefix="/rag", tags=["RAG"])
-
-# TODO: Replace with actual auth middleware
-async def get_current_user_id() -> str:
-    """Temporary: Get user ID from auth (hardcoded for now)"""
-    return "00000000-0000-0000-0000-000000000001"
 
 
 @router.get("/sources", response_model=List[SourceResponse])

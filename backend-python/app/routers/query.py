@@ -13,14 +13,9 @@ from app.schemas.query import (
 )
 from app.services.query_service import query_service
 from app.tracing import export_spans_to_db
+from app.auth import get_current_user_id
 
 router = APIRouter(prefix="/query", tags=["Query"])
-
-
-# TODO: Replace with actual auth middleware
-async def get_current_user_id() -> str:
-    """Temporary: Get user ID from auth (hardcoded for now)"""
-    return "00000000-0000-0000-0000-000000000001"
 
 
 @router.post("/process", response_model=ProcessQueryResponse)

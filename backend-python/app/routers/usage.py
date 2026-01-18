@@ -6,14 +6,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.services.usage_service import usage_service
+from app.auth import get_current_user_id
 
 router = APIRouter(prefix="/usage", tags=["Usage"])
-
-
-# TODO: Replace with actual auth middleware
-async def get_current_user_id() -> str:
-    """Temporary: Get user ID from auth (hardcoded for now)"""
-    return "00000000-0000-0000-0000-000000000001"
 
 
 @router.get("/stats")
