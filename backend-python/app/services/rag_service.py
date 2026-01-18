@@ -303,7 +303,7 @@ class RAGService:
         """Get all sources for a user"""
         result = await db.execute(
             text("""
-                SELECT id, name, type, file_size, chunk_count, metadata, created_at
+                SELECT id, user_id, name, type, file_size, chunk_count, metadata, created_at
                 FROM rag_sources
                 WHERE user_id = :user_id
                 ORDER BY created_at DESC
@@ -314,6 +314,7 @@ class RAGService:
         return [
             {
                 "id": str(row["id"]),
+                "user_id": str(row["user_id"]),
                 "name": row["name"],
                 "type": row["type"],
                 "file_size": row["file_size"],
