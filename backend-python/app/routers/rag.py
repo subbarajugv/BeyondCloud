@@ -14,6 +14,7 @@ from app.schemas.rag import (
 )
 from app.services.rag_service import rag_service
 from app.services.answer_service import answer_service
+from app.services.rag_guardrails import validate_query, validate_response, sanitize_query
 from app.tracing import export_spans_to_db
 from app.auth import get_current_user_id
 from app.role_check import get_current_user_with_role, require_min_role, has_min_role, UserWithRole
@@ -189,6 +190,22 @@ async def query(
     user_id: str = Depends(get_current_user_id),
 ):
     """RAG query - retrieve with hybrid search and optionally generate answer"""
+    
+    # ========== GUARDRAIL: Validate query ==========
+    is_valid, block_reason, warnings = validate_query(request.query)
+    if not is_valid:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "QUERY_BLOCKED",
+                "message": block_reason,
+            }
+        )
+    
+    # Sanitize query
+    sanitized_query = sanitize_query(request.query)
+    # ========== END GUARDRAIL ==========
+    
     # Determine search mode
     search_mode = "vector"
     if request.use_hybrid:

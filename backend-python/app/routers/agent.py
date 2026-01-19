@@ -11,6 +11,7 @@ from typing import Optional, Dict, Any, List
 from enum import Enum
 
 from app.services.agent_tools import AgentTools, ToolResponse, ToolResult, TOOL_SCHEMAS
+from app.services.agent_guardrails import validate_tool_call, log_tool_execution
 from app.tracing import create_span, tracer
 from app.middleware.rbac import require_min_role
 from app.database import get_db
@@ -25,6 +26,7 @@ router = APIRouter(
     tags=["agent"],
     dependencies=[require_min_role("agent_user")]
 )
+
 
 
 # ========== Models ==========
@@ -240,11 +242,40 @@ async def execute_tool(
                 "message": "Tool call requires approval"
             }
         
+        # ========== GUARDRAIL CHECK ==========
+        is_safe, blocked_reason = validate_tool_call(
+            tool_name=tool_name,
+            args=args,
+            sandbox_path=session.sandbox_path
+        )
+        
+        # Log the attempt (for audit trail)
+        log_tool_execution(
+            user_id=user_id,
+            tool_name=tool_name,
+            args=args,
+            blocked=not is_safe,
+            reason=blocked_reason
+        )
+        
+        if not is_safe:
+            span.set_status("ERROR", f"Blocked by guardrail: {blocked_reason}")
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "error": "GUARDRAIL_BLOCKED",
+                    "message": blocked_reason,
+                    "tool": tool_name
+                }
+            )
+        # ========== END GUARDRAIL CHECK ==========
+        
         # Execute the tool
         span.add_event("executing_tool")
         result: ToolResponse
         
         if tool_name == "read_file":
+
             result = await tools.read_file(args.get("path", ""))
         elif tool_name == "write_file":
             result = await tools.write_file(args.get("path", ""), args.get("content", ""))
