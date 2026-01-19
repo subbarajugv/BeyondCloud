@@ -117,7 +117,129 @@ class BeyondCloudToolsServer:
                     "required": ["sql"]
                 }
             ),
+            # ===== File Tools =====
+            "read_file": Tool(
+                name="read_file",
+                description="Read the contents of a file in the sandbox",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "description": "Relative path to the file"
+                        }
+                    },
+                    "required": ["path"]
+                }
+            ),
+            "write_file": Tool(
+                name="write_file",
+                description="Write content to a file in the sandbox",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "description": "Relative path to the file"
+                        },
+                        "content": {
+                            "type": "string",
+                            "description": "Content to write"
+                        }
+                    },
+                    "required": ["path", "content"]
+                }
+            ),
+            "list_dir": Tool(
+                name="list_dir",
+                description="List files and directories in a path",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "description": "Relative path to list (default: '.')",
+                            "default": "."
+                        }
+                    },
+                    "required": []
+                }
+            ),
+            "search_files": Tool(
+                name="search_files",
+                description="Search for files matching a glob pattern",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "pattern": {
+                            "type": "string",
+                            "description": "Glob pattern (e.g., '*.py', '**/*.ts')"
+                        },
+                        "path": {
+                            "type": "string",
+                            "description": "Starting directory (default: '.')",
+                            "default": "."
+                        }
+                    },
+                    "required": ["pattern"]
+                }
+            ),
+            # ===== Exec Tools =====
+            "run_command": Tool(
+                name="run_command",
+                description="Run a shell command in the sandbox directory",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "cmd": {
+                            "type": "string",
+                            "description": "Shell command to execute"
+                        },
+                        "timeout": {
+                            "type": "integer",
+                            "description": "Timeout in seconds (default: 30)",
+                            "default": 30
+                        }
+                    },
+                    "required": ["cmd"]
+                }
+            ),
+            # ===== Planning Tools =====
+            "think": Tool(
+                name="think",
+                description="Record a thought or reasoning step without executing any action. Use this to think through problems before acting.",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "thought": {
+                            "type": "string",
+                            "description": "The reasoning or thought to record"
+                        }
+                    },
+                    "required": ["thought"]
+                }
+            ),
+            "plan_task": Tool(
+                name="plan_task",
+                description="Create an execution plan for a complex task. Use this before performing multi-step operations.",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "goal": {
+                            "type": "string",
+                            "description": "The goal to accomplish"
+                        },
+                        "steps": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "List of steps to execute"
+                        }
+                    },
+                    "required": ["goal", "steps"]
+                }
+            ),
         }
+
     
     # =========================================================================
     # MCP Protocol Handlers
@@ -198,6 +320,23 @@ class BeyondCloudToolsServer:
                 return await self._python_executor(args)
             elif tool_name == "database_query":
                 return await self._database_query(args)
+            # File tools
+            elif tool_name == "read_file":
+                return await self._read_file(args)
+            elif tool_name == "write_file":
+                return await self._write_file(args)
+            elif tool_name == "list_dir":
+                return await self._list_dir(args)
+            elif tool_name == "search_files":
+                return await self._search_files(args)
+            # Exec tools
+            elif tool_name == "run_command":
+                return await self._run_command(args)
+            # Planning tools
+            elif tool_name == "think":
+                return await self._think(args)
+            elif tool_name == "plan_task":
+                return await self._plan_task(args)
             else:
                 return ToolResult(
                     content=[{"type": "text", "text": f"Unknown tool: {tool_name}"}],
@@ -354,6 +493,206 @@ class BeyondCloudToolsServer:
                 isError=True
             )
     
+    # ===== File Tool Implementations =====
+    
+    async def _read_file(self, args: Dict[str, Any]) -> ToolResult:
+        """Read file contents"""
+        from pathlib import Path
+        
+        path = args.get("path", "")
+        sandbox = Path(self.sandbox_path)
+        full_path = sandbox / path
+        
+        # Security: ensure within sandbox
+        try:
+            full_path = full_path.resolve()
+            if not str(full_path).startswith(str(sandbox.resolve())):
+                return ToolResult(
+                    content=[{"type": "text", "text": "Path outside sandbox"}],
+                    isError=True
+                )
+        except Exception:
+            return ToolResult(
+                content=[{"type": "text", "text": "Invalid path"}],
+                isError=True
+            )
+        
+        if not full_path.exists():
+            return ToolResult(
+                content=[{"type": "text", "text": f"File not found: {path}"}],
+                isError=True
+            )
+        
+        try:
+            content = full_path.read_text(encoding="utf-8")
+            return ToolResult(
+                content=[{"type": "text", "text": content}]
+            )
+        except Exception as e:
+            return ToolResult(
+                content=[{"type": "text", "text": f"Read error: {str(e)}"}],
+                isError=True
+            )
+    
+    async def _write_file(self, args: Dict[str, Any]) -> ToolResult:
+        """Write file contents"""
+        from pathlib import Path
+        
+        path = args.get("path", "")
+        content = args.get("content", "")
+        sandbox = Path(self.sandbox_path)
+        full_path = sandbox / path
+        
+        # Security: ensure within sandbox
+        try:
+            full_path.parent.mkdir(parents=True, exist_ok=True)
+            full_path = full_path.resolve()
+            if not str(full_path).startswith(str(sandbox.resolve())):
+                return ToolResult(
+                    content=[{"type": "text", "text": "Path outside sandbox"}],
+                    isError=True
+                )
+        except Exception:
+            return ToolResult(
+                content=[{"type": "text", "text": "Invalid path"}],
+                isError=True
+            )
+        
+        try:
+            full_path.write_text(content, encoding="utf-8")
+            return ToolResult(
+                content=[{"type": "text", "text": f"Written {len(content)} chars to {path}"}]
+            )
+        except Exception as e:
+            return ToolResult(
+                content=[{"type": "text", "text": f"Write error: {str(e)}"}],
+                isError=True
+            )
+    
+    async def _list_dir(self, args: Dict[str, Any]) -> ToolResult:
+        """List directory contents"""
+        from pathlib import Path
+        
+        path = args.get("path", ".")
+        sandbox = Path(self.sandbox_path)
+        full_path = (sandbox / path).resolve()
+        
+        if not str(full_path).startswith(str(sandbox.resolve())):
+            return ToolResult(
+                content=[{"type": "text", "text": "Path outside sandbox"}],
+                isError=True
+            )
+        
+        if not full_path.exists():
+            return ToolResult(
+                content=[{"type": "text", "text": f"Directory not found: {path}"}],
+                isError=True
+            )
+        
+        entries = []
+        for entry in full_path.iterdir():
+            prefix = "📁 " if entry.is_dir() else "📄 "
+            entries.append(f"{prefix}{entry.name}")
+        
+        entries.sort()
+        return ToolResult(
+            content=[{"type": "text", "text": "\n".join(entries) or "(empty)"}]
+        )
+    
+    async def _search_files(self, args: Dict[str, Any]) -> ToolResult:
+        """Search for files by pattern"""
+        from pathlib import Path
+        
+        pattern = args.get("pattern", "*")
+        path = args.get("path", ".")
+        sandbox = Path(self.sandbox_path)
+        full_path = (sandbox / path).resolve()
+        
+        if not str(full_path).startswith(str(sandbox.resolve())):
+            return ToolResult(
+                content=[{"type": "text", "text": "Path outside sandbox"}],
+                isError=True
+            )
+        
+        matches = list(full_path.rglob(pattern))[:50]  # Limit results
+        results = [str(m.relative_to(sandbox)) for m in matches]
+        
+        return ToolResult(
+            content=[{"type": "text", "text": "\n".join(results) or "(no matches)"}]
+        )
+    
+    # ===== Exec Tool Implementations =====
+    
+    async def _run_command(self, args: Dict[str, Any]) -> ToolResult:
+        """Run shell command in sandbox"""
+        import subprocess
+        import os
+        
+        cmd = args.get("cmd", "")
+        timeout = args.get("timeout", 30)
+        
+        # Security checks via guardrails
+        from app.services.agent_guardrails import check_command
+        is_safe, reason = check_command(cmd)
+        if not is_safe:
+            return ToolResult(
+                content=[{"type": "text", "text": f"Blocked: {reason}"}],
+                isError=True
+            )
+        
+        try:
+            result = subprocess.run(
+                cmd,
+                shell=True,
+                cwd=self.sandbox_path,
+                capture_output=True,
+                text=True,
+                timeout=timeout
+            )
+            
+            output = result.stdout
+            if result.stderr:
+                output += f"\n[stderr]: {result.stderr}"
+            output += f"\n[exit code]: {result.returncode}"
+            
+            return ToolResult(
+                content=[{"type": "text", "text": output or "(no output)"}]
+            )
+        except subprocess.TimeoutExpired:
+            return ToolResult(
+                content=[{"type": "text", "text": f"Timeout after {timeout}s"}],
+                isError=True
+            )
+        except Exception as e:
+            return ToolResult(
+                content=[{"type": "text", "text": f"Error: {str(e)}"}],
+                isError=True
+            )
+    
+    # ===== Planning Tool Implementations =====
+    
+    async def _think(self, args: Dict[str, Any]) -> ToolResult:
+        """Record a thought without action"""
+        thought = args.get("thought", "")
+        
+        # Just acknowledge the thought - helps agent reason without filling context
+        return ToolResult(
+            content=[{"type": "text", "text": f"💭 Thought recorded ({len(thought)} chars)"}]
+        )
+    
+    async def _plan_task(self, args: Dict[str, Any]) -> ToolResult:
+        """Create execution plan"""
+        goal = args.get("goal", "")
+        steps = args.get("steps", [])
+        
+        plan_text = f"📋 **Plan: {goal}**\n\n"
+        for i, step in enumerate(steps, 1):
+            plan_text += f"{i}. {step}\n"
+        
+        return ToolResult(
+            content=[{"type": "text", "text": plan_text}]
+        )
+    
     # =========================================================================
     # STDIO Transport
     # =========================================================================
@@ -383,3 +722,4 @@ class BeyondCloudToolsServer:
             except Exception as e:
                 logger.exception(f"Error in stdio loop: {e}")
                 break
+
