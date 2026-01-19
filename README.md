@@ -9,10 +9,12 @@ BeyondCloud-webui/
 ├── frontend/              # Svelte 5 WebUI (copied from llama.cpp)
 ├── backend-python/        # Python/FastAPI - AI Service (RAG, Agents, MCP)
 ├── backend-nodejs/        # Node.js/Express - Core API (Auth, Chat)
-├── docs/                  # Documentation
-│   ├── task.md            # Development roadmap
-│   ├── api-contract.md    # Complete API specification
-│   └── AGENT_CONTRACT.md  # Agent tool contracts
+├── docs/                  # Documentation & API Contracts
+│   ├── API_OVERVIEW.md    # Service mapping and ports
+│   ├── CONTRACT.md        # Core protocol and error standards
+│   ├── AGENT_CONTRACT.md  # Agent tool contracts
+│   ├── RAG_CONTRACT.md    # Knowledge base contracts
+│   └── DATABASE_SCHEMA.md # Database structure & ER diagram
 └── README.md
 ```
 
@@ -118,9 +120,10 @@ LLAMA_CPP_BASE_URL=http://localhost:8080/v1
 
 ## Documentation
 
-- [API Contract](docs/api-contract.md) - Complete API specification
-- [Task Roadmap](docs/task.md) - Development phases and status
+- [API Overview](docs/API_OVERVIEW.md) - Complete service map and ports
+- [Core Contract](docs/CONTRACT.md) - Protocol standards and errors
 - [Agent Contract](docs/AGENT_CONTRACT.md) - Agent tool specifications
+- [RAG Contract](docs/RAG_CONTRACT.md) - Knowledge base specifications
 
 ## License
 

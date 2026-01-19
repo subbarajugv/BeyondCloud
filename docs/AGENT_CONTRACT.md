@@ -1,10 +1,10 @@
-# Agent Contract
+# Agent Contract (BeyondCloud)
 
 **Version**: 1.0  
-**Status**: Draft  
-**Last Updated**: 2026-01-11
+**Status**: Active  
+**Last Updated**: 2026-01-19
 
-This document defines the formal contracts for the Agent system. The Agent is composed of multiple sub-contracts that define inputs, outputs, guarantees, and failure modes for each stage.
+This document defines the formal contracts for the BeyondCloud Agent system.
 
 ---
 
@@ -331,9 +331,10 @@ interface Step {
 
 ## Related Contracts
 
-- [RAG_CONTRACT.md](RAG_CONTRACT.md) - Retrieval-Augmented Generation (independent)
+- [API_OVERVIEW.md](API_OVERVIEW.md) - System architecture and service map
+- [CONTRACT.md](CONTRACT.md) - Core protocol and error standards
+- [RAG_CONTRACT.md](RAG_CONTRACT.md) - Knowledge base retrieval logic
 - [RBAC_CONTRACT.md](RBAC_CONTRACT.md) - Role-based access control
-- [CONTRACT.md](CONTRACT.md) - Core API contract
 
 ---
 

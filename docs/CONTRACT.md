@@ -1,10 +1,10 @@
-# API Contract
+# Core API Contract (BeyondCloud)
 
 **Version**: 1.0  
 **Status**: Active  
-**Last Updated**: 2026-01-11
+**Last Updated**: 2026-01-19
 
-This document defines the formal contract between frontend and backend. Both parties MUST adhere to this contract.
+This document defines the formal protocol contract between the BeyondCloud frontend and backends.
 
 ---
 

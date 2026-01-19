@@ -66,14 +66,46 @@ async def init_database():
             CREATE INDEX IF NOT EXISTS idx_traces_user ON traces(user_id)
         """))
         
+        # Create RAG collections table (hierarchical folders with RBAC)
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS rag_collections (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                parent_id UUID REFERENCES rag_collections(id) ON DELETE CASCADE,
+                user_id UUID NOT NULL,
+                name VARCHAR(255) NOT NULL,
+                description TEXT,
+                visibility VARCHAR(20) DEFAULT 'personal' NOT NULL,
+                allowed_roles TEXT[] DEFAULT '{}',
+                allowed_teams UUID[] DEFAULT '{}',
+                allowed_users UUID[] DEFAULT '{}',
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW(),
+                UNIQUE(parent_id, name, user_id)
+            )
+        """))
+        
+        # Create indexes for collections
+        await conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_rag_collections_parent ON rag_collections(parent_id)
+        """))
+        await conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_rag_collections_user ON rag_collections(user_id)
+        """))
+        await conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_rag_collections_visibility ON rag_collections(visibility)
+        """))
+        
         # Create RAG sources table
         await conn.execute(text("""
             CREATE TABLE IF NOT EXISTS rag_sources (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                collection_id UUID REFERENCES rag_collections(id) ON DELETE SET NULL,
                 user_id UUID NOT NULL,
                 name VARCHAR(255) NOT NULL,
                 type VARCHAR(50) NOT NULL,
                 visibility VARCHAR(20) DEFAULT 'private' NOT NULL,
+                storage_key VARCHAR(512),
+                storage_type VARCHAR(20) DEFAULT 'none',
                 file_size INTEGER,
                 chunk_count INTEGER DEFAULT 0,
                 metadata JSONB DEFAULT '{}',
@@ -81,10 +113,22 @@ async def init_database():
             )
         """))
         
-        # Add visibility column if it doesn't exist (migration for existing tables)
+        # Add new columns if they don't exist (migration for existing tables)
         await conn.execute(text("""
             ALTER TABLE rag_sources 
             ADD COLUMN IF NOT EXISTS visibility VARCHAR(20) DEFAULT 'private' NOT NULL
+        """))
+        await conn.execute(text("""
+            ALTER TABLE rag_sources 
+            ADD COLUMN IF NOT EXISTS collection_id UUID REFERENCES rag_collections(id) ON DELETE SET NULL
+        """))
+        await conn.execute(text("""
+            ALTER TABLE rag_sources 
+            ADD COLUMN IF NOT EXISTS storage_key VARCHAR(512)
+        """))
+        await conn.execute(text("""
+            ALTER TABLE rag_sources 
+            ADD COLUMN IF NOT EXISTS storage_type VARCHAR(20) DEFAULT 'none'
         """))
         
         # Create RAG chunks table with vector embeddings
@@ -110,5 +154,9 @@ async def init_database():
         await conn.execute(text("""
             CREATE INDEX IF NOT EXISTS idx_rag_sources_visibility ON rag_sources(visibility)
         """))
+        await conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_rag_sources_collection ON rag_sources(collection_id)
+        """))
         
-        print("✅ Database initialized with pgvector and RAG tables")
+        print("✅ Database initialized with pgvector, RAG collections, and storage tables")
+

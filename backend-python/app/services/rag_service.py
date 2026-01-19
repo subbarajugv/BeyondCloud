@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.tracing import create_span, tracer
 from app.config import get_settings
+from app.services.storage_service import get_storage_service
 
 
 class RAGService:
@@ -77,6 +78,8 @@ class RAGService:
         chunk_overlap: int = 50,
         visibility: str = "private",
         metadata: Optional[Dict[str, Any]] = None,
+        file_content: Optional[bytes] = None,  # Original file bytes for storage
+        collection_id: Optional[str] = None,  # Collection to add source to
     ) -> Dict[str, Any]:
         """
         Ingest text content: chunk, embed, and store
@@ -85,12 +88,21 @@ class RAGService:
             visibility: 'private' (user only) or 'shared' (all users)
         """
         async with create_span("rag.ingest", {"name": name, "content_length": len(content), "visibility": visibility}) as span:
+            # Store original file if provided
+            storage_key = None
+            storage_type = "none"
+            if file_content:
+                storage = get_storage_service()
+                storage_key = await storage.upload(file_content, name, user_id)
+                storage_type = get_settings().storage_type
+                span.set_attribute("storage_type", storage_type)
+            
             # Create source record
             source_id = uuid.uuid4()
             await db.execute(
                 text("""
-                    INSERT INTO rag_sources (id, user_id, name, type, visibility, file_size, metadata)
-                    VALUES (:id, :user_id, :name, :type, :visibility, :file_size, :metadata)
+                    INSERT INTO rag_sources (id, user_id, name, type, visibility, file_size, metadata, collection_id, storage_key, storage_type)
+                    VALUES (:id, :user_id, :name, :type, :visibility, :file_size, :metadata, :collection_id, :storage_key, :storage_type)
                 """),
                 {
                     "id": str(source_id),
@@ -100,6 +112,9 @@ class RAGService:
                     "visibility": visibility,
                     "file_size": len(content),
                     "metadata": json.dumps(metadata or {}),
+                    "collection_id": collection_id,
+                    "storage_key": storage_key,
+                    "storage_type": storage_type,
                 }
             )
             
@@ -305,20 +320,32 @@ class RAGService:
         self,
         db: AsyncSession,
         user_id: str,
+        collection_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
         Get all sources accessible to a user:
         - User's own private sources
         - All shared sources (created by any user)
+        
+        Optionally filter by collection.
         """
+        collection_filter = ""
+        params = {"user_id": user_id}
+        
+        if collection_id:
+            collection_filter = "AND collection_id = :collection_id"
+            params["collection_id"] = collection_id
+        
         result = await db.execute(
-            text("""
-                SELECT id, user_id, name, type, visibility, file_size, chunk_count, metadata, created_at
+            text(f"""
+                SELECT id, user_id, name, type, visibility, file_size, chunk_count, 
+                       metadata, created_at, collection_id, storage_key, storage_type
                 FROM rag_sources
-                WHERE user_id = :user_id OR visibility = 'shared'
+                WHERE (user_id = :user_id OR visibility = 'shared')
+                {collection_filter}
                 ORDER BY visibility ASC, created_at DESC
             """),
-            {"user_id": user_id}
+            params
         )
         
         return [
@@ -333,9 +360,41 @@ class RAGService:
                 "metadata": row["metadata"],
                 "created_at": row["created_at"].isoformat(),
                 "is_owner": str(row["user_id"]) == user_id,
+                "collection_id": str(row["collection_id"]) if row["collection_id"] else None,
+                "storage_key": row["storage_key"],
+                "storage_type": row["storage_type"],
+                "has_file": row["storage_key"] is not None,
             }
             for row in result.mappings().all()
         ]
+    
+    async def download_source(
+        self,
+        db: AsyncSession,
+        source_id: str,
+    ) -> Optional[tuple]:
+        """
+        Download the original file for a source.
+        
+        Returns:
+            Tuple of (file_bytes, filename) or None if no file stored
+        """
+        result = await db.execute(
+            text("""
+                SELECT name, storage_key, storage_type
+                FROM rag_sources
+                WHERE id = :source_id
+            """),
+            {"source_id": source_id}
+        )
+        row = result.fetchone()
+        
+        if not row or not row.storage_key or row.storage_type == "none":
+            return None
+        
+        storage = get_storage_service()
+        file_bytes = await storage.download(row.storage_key)
+        return (file_bytes, row.name)
     
     async def delete_source(
         self,
@@ -343,7 +402,25 @@ class RAGService:
         user_id: str,
         source_id: str,
     ) -> bool:
-        """Delete a source and all its chunks, including from search indices"""
+        """Delete a source and all its chunks, including from search indices and storage"""
+        # Get storage key before deletion
+        result = await db.execute(
+            text("SELECT storage_key, storage_type FROM rag_sources WHERE id = :id AND user_id = :user_id"),
+            {"id": source_id, "user_id": user_id}
+        )
+        row = result.fetchone()
+        
+        if not row:
+            return False
+        
+        # Delete from storage if applicable
+        if row.storage_key and row.storage_type != "none":
+            try:
+                storage = get_storage_service()
+                await storage.delete(row.storage_key)
+            except Exception:
+                pass  # File may already be deleted
+        
         # Clean up from in-memory indices
         try:
             from app.services.faiss_service import faiss_service

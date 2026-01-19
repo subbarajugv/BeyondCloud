@@ -1,8 +1,8 @@
-# RAG Contract
+# RAG Contract (BeyondCloud)
 
-**Version**: 1.0  
-**Status**: Draft  
-**Last Updated**: 2026-01-11
+**Version**: 2.0  
+**Status**: Active  
+**Last Updated**: 2026-01-19
 
 Retrieval-Augmented Generation - ground LLM responses in retrieved documents.
 
@@ -20,19 +20,21 @@ Retrieval-Augmented Generation - ground LLM responses in retrieved documents.
                     └─────────────────────────────────────┘
                                       │
                                       ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│                         RAG QUERY PIPELINE                          │
-│                                                                      │
-│  Query → [Retrieval] → [Context Assembly] → [Grounding] → [Answering] │
-│                                                                      │
-└─────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                            RAG QUERY PIPELINE                               │
+│                                                                             │
+│  Query → [Pre-Query Guard] → [Retrieval] → [Context Assembly]              │
+│              → [Grounding] → [Answering] → [Post-Gen Guard] → Response     │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Sub-Contract 1: Ingestion
+## Sub-Contract 1: Ingestion ✅
 
-**Purpose**: Process and index documents for retrieval
+**Purpose**: Process and index documents for retrieval  
+**Status**: Implemented
 
 ### Inputs
 | Field | Type | Required |
@@ -41,187 +43,276 @@ Retrieval-Augmented Generation - ground LLM responses in retrieved documents.
 | `dataSourceId` | string | Yes |
 | `chunkSize` | number | No (default 512) |
 | `chunkOverlap` | number | No (default 50) |
-| `embeddingModel` | string | No |
+| `visibility` | string | No (default "private") |
 
 ### Outputs
 | Field | Type | Description |
 |-------|------|-------------|
-| `jobId` | string | Ingestion job ID |
-| `indexed` | number | Documents indexed |
-| `chunks` | number | Total chunks created |
-| `vectorIds` | string[] | IDs in vector store |
-| `status` | enum | 'queued', 'processing', 'completed', 'failed' |
+| `source_id` | string | Created source ID |
+| `chunk_count` | number | Total chunks created |
+| `status` | enum | 'completed', 'failed' |
 
 ### Guarantees
 - Documents chunked consistently
 - Embeddings generated for all chunks
 - Metadata preserved (source, page, etc.)
-- User/org data isolated
-- Job can be tracked asynchronously
+- User/org data isolated via `visibility` field
 
 ### Failures
 | Code | Meaning |
 |------|---------|
 | `PARSE_ERROR` | Cannot parse document format |
 | `EMBEDDING_FAILED` | Embedding model error |
-| `INDEX_FULL` | Storage quota exceeded |
 | `UNSUPPORTED_FORMAT` | Document type not supported |
-| `PERMISSION_DENIED` | User cannot ingest to this data source |
 
 ---
 
-## Sub-Contract 2: Retrieval
+## Sub-Contract 2: Pre-Query Validation 🚧
 
-**Purpose**: Find relevant documents for a query (includes reranking)
+**Purpose**: Validate and filter user queries before retrieval  
+**Status**: Planned (Phase B)
 
 ### Inputs
 | Field | Type | Required |
 |-------|------|----------|
 | `query` | string | Yes |
-| `dataSources` | string[] | No (all accessible) |
-| `topK` | number | No (default 10) |
-| `filters` | Filter[] | No |
-| `rerank` | boolean | No (default true) |
-| `rerankModel` | string | No |
+| `user_id` | string | Yes |
 
 ### Outputs
 | Field | Type | Description |
 |-------|------|-------------|
-| `documents` | Document[] | Retrieved & reranked docs |
-| `scores` | number[] | Relevance scores |
-| `totalFound` | number | Total matches before topK |
-| `dataSources` | string[] | Sources queried |
+| `passed` | boolean | Query passed all checks |
+| `blocked_reason` | string | If failed, the reason |
+| `sanitized_query` | string | Cleaned query text |
+
+### Checks
+| Check Type | Description |
+|------------|-------------|
+| `blocklist` | Reject queries containing blocked terms |
+| `pii_detection` | Flag queries containing PII |
+| `toxicity` | Block toxic or harmful queries |
+| `intent_classification` | Classify query intent for routing |
 
 ### Guarantees
-- Results ordered by relevance (post-rerank if enabled)
-- **Only queries data sources user has access to** (RBAC enforced)
-- Maximum `topK` results returned
-- Reranking improves precision over embedding similarity
+- All queries logged for audit
+- Blocked queries do not reach LLM
+- Configurable per-organization
+
+### Failures
+| Code | Meaning |
+|------|---------|
+| `QUERY_BLOCKED` | Query violated content policy |
+| `PII_DETECTED` | Query contains personal information |
+
+---
+
+## Sub-Contract 3: Retrieval ✅
+
+**Purpose**: Find relevant documents for a query (includes reranking)  
+**Status**: Implemented
+
+### Inputs
+| Field | Type | Required |
+|-------|------|----------|
+| `query` | string | Yes |
+| `source_ids` | string[] | No (all accessible) |
+| `top_k` | number | No (default 5) |
+| `min_score` | float | No (default 0.5) |
+
+### Outputs
+| Field | Type | Description |
+|-------|------|-------------|
+| `chunks` | Chunk[] | Retrieved & ranked chunks |
+| `scores` | number[] | Relevance scores |
+
+### Guarantees
+- Results ordered by relevance
+- **Only queries sources user has access to** (RBAC enforced)
+- Supports both private and shared sources
 
 ### Failures
 | Code | Meaning |
 |------|---------|
 | `NO_RESULTS` | No relevant documents found |
-| `INDEX_UNAVAILABLE` | Vector database down |
 | `EMBEDDING_FAILED` | Cannot embed query |
-| `RERANK_FAILED` | Reranking service error |
-| `NO_ACCESSIBLE_SOURCES` | User has no RAG access |
 
 ---
 
-## Sub-Contract 3: Context Assembly
+## Sub-Contract 4: Context Assembly ⚠️
 
-**Purpose**: Build LLM prompt with retrieved context
+**Purpose**: Build LLM prompt with retrieved context  
+**Status**: Partially Implemented (system_message pending)
 
 ### Inputs
 | Field | Type | Required |
 |-------|------|----------|
 | `query` | string | Yes |
-| `documents` | Document[] | Yes |
-| `maxTokens` | number | Yes |
-| `template` | string | No |
+| `chunks` | Chunk[] | Yes |
+| `system_message` | string | No |
+| `grounding_rules` | GroundingRules | No |
+| `max_tokens` | number | Yes |
+
+### GroundingRules Schema
+```json
+{
+  "min_sources": 2,
+  "citation_style": "inline",
+  "require_exact_match": false,
+  "fallback_message": "I don't have enough information."
+}
+```
 
 ### Outputs
 | Field | Type | Description |
 |-------|------|-------------|
 | `prompt` | string | Assembled prompt with context |
-| `includedDocs` | number | Docs that fit in context |
-| `tokenCount` | number | Total tokens used |
 | `citations` | Citation[] | Source references |
+| `token_count` | number | Total tokens used |
 
 ### Guarantees
-- Prompt fits within `maxTokens`
-- Most relevant docs included first
+- System message prepended to prompt
+- Most relevant chunks included first
 - Citations mapped to source documents
-- Clear separation of context and query
 
 ### Failures
 | Code | Meaning |
 |------|---------|
 | `CONTEXT_OVERFLOW` | Cannot fit minimum required context |
-| `TEMPLATE_ERROR` | Invalid prompt template |
 
 ---
 
-## Sub-Contract 4: Grounding
+## Sub-Contract 5: Grounding ⚠️
 
-**Purpose**: Verify retrieved context can support an answer (pre-generation check)
+**Purpose**: Verify retrieved context can support an answer  
+**Status**: Partially Implemented (rules pending)
 
 ### Inputs
 | Field | Type | Required |
 |-------|------|----------|
 | `query` | string | Yes |
-| `documents` | Document[] | Yes |
-| `prompt` | string | Yes |
-| `strictMode` | boolean | No (default false) |
+| `chunks` | Chunk[] | Yes |
+| `grounding_rules` | GroundingRules | No |
 
 ### Outputs
 | Field | Type | Description |
 |-------|------|-------------|
-| `isGroundable` | boolean | Query can be answered from sources |
-| `groundingScore` | number | 0-1 confidence |
-| `relevantDocs` | Document[] | Docs that support the query |
+| `is_groundable` | boolean | Query answerable from sources |
+| `grounding_score` | number | 0-1 confidence |
 | `gaps` | string[] | Missing information |
 
 ### Guarantees
-- Checks if query answerable from context
-- Filters out irrelevant docs before generation
-- Strict mode rejects if insufficient grounding
+- Enforces `min_sources` from grounding rules
+- Returns fallback message if insufficient grounding
 
 ### Failures
 | Code | Meaning |
 |------|---------|
-| `GROUNDING_FAILED` | Cannot verify (service error) |
-| `INSUFFICIENT_CONTEXT` | Cannot answer from available docs (strict mode) |
+| `INSUFFICIENT_CONTEXT` | Cannot answer from available docs |
 
 ---
 
-## Sub-Contract 5: Answering
+## Sub-Contract 6: Answering ✅
 
-**Purpose**: Generate response using grounded context
+**Purpose**: Generate response using grounded context  
+**Status**: Implemented
 
 ### Inputs
 | Field | Type | Required |
 |-------|------|----------|
 | `prompt` | string | Yes |
-| `groundedDocs` | Document[] | Yes |
-| `citations` | Citation[] | Yes |
 | `model` | string | No |
-| `temperature` | number | No |
-| `stream` | boolean | No |
+| `generate` | boolean | No (default true) |
 
 ### Outputs
 | Field | Type | Description |
 |-------|------|-------------|
 | `answer` | string | Generated response |
-| `citationsUsed` | Citation[] | Sources referenced in answer |
-| `confidence` | number | Answer confidence 0-1 |
+| `citations` | Citation[] | Sources used |
 
 ### Guarantees
-- Answer based on grounded context only
+- Answer based on grounded context
 - Citations included in response
-- Streaming supported
-- No hallucination (grounding already verified)
 
 ### Failures
 | Code | Meaning |
 |------|---------|
 | `GENERATION_FAILED` | LLM error |
-| `CONTEXT_IGNORED` | Answer doesn't use context (warning) |
 
 ---
 
-## Data Source Access (RBAC)
+## Sub-Contract 7: Post-Generation Validation 🚧
 
-RAG queries are filtered by user's data source access:
+**Purpose**: Validate LLM output before delivery  
+**Status**: Planned (Phase B)
+
+### Inputs
+| Field | Type | Required |
+|-------|------|----------|
+| `response` | string | Yes |
+| `sources` | Chunk[] | Yes |
+| `query` | string | Yes |
+
+### Outputs
+| Field | Type | Description |
+|-------|------|-------------|
+| `passed` | boolean | Response passed all checks |
+| `issues` | Issue[] | List of detected issues |
+| `flagged` | boolean | Requires admin review |
+
+### Checks
+| Check Type | Description |
+|------------|-------------|
+| `toxicity` | Block toxic or harmful responses |
+| `hallucination` | Verify claims are grounded in sources |
+| `policy_compliance` | Check against org content policy |
+
+### Guarantees
+- All responses logged for audit
+- Failed responses flagged for admin review
+- Admins notified of policy violations
+
+### Failures
+| Code | Meaning |
+|------|---------|
+| `RESPONSE_BLOCKED` | Response violated content policy |
+| `HALLUCINATION_DETECTED` | Response not grounded in sources |
+
+---
+
+## Sub-Contract 8: Audit & Notification 🚧
+
+**Purpose**: Log all RAG interactions and notify on violations  
+**Status**: Planned (Phase C)
+
+### Inputs
+| Field | Type | Required |
+|-------|------|----------|
+| `event_type` | string | Yes |
+| `user_id` | string | Yes |
+| `details` | object | Yes |
+| `flagged` | boolean | No |
+
+### Outputs
+| Field | Type | Description |
+|-------|------|-------------|
+| `log_id` | string | Audit log entry ID |
+| `notifications_sent` | number | Admin notifications sent |
+
+### Guarantees
+- All RAG queries stored in `guardrail_logs`
+- Flagged content triggers admin notification
+- Supports email and webhook channels
+
+---
+
+## Data Source Access (RBAC) ✅
+
+**Status**: Implemented
 
 | Visibility | Who Can Query |
 |------------|---------------|
-| `public` | All org users |
-| `role` | Users with specific roles |
-| `team` | Users in specific teams |
-| `private` | Only assigned users |
-| `personal` | Only the owner |
+| `private` | Only the owner |
+| `shared` | All authenticated users |
 
 See [RBAC_CONTRACT.md](RBAC_CONTRACT.md) for full access control details.
 
@@ -231,43 +322,38 @@ See [RBAC_CONTRACT.md](RBAC_CONTRACT.md) for full access control details.
 
 ```
 # Ingestion
-POST   /api/rag/ingest              - Start ingestion job
-GET    /api/rag/ingest/:jobId       - Get job status
-DELETE /api/rag/ingest/:jobId       - Cancel job
-
-# Data Sources
-GET    /api/rag/sources             - List accessible sources
-POST   /api/rag/sources             - Create data source
-DELETE /api/rag/sources/:id         - Delete data source
+POST   /rag/ingest              - Ingest text content
+POST   /rag/ingest/file         - Upload and ingest file
+GET    /rag/sources             - List accessible sources
+DELETE /rag/sources/:id         - Delete data source
 
 # Query
-POST   /api/rag/query               - Query with RAG
-POST   /api/rag/retrieve            - Retrieve only (no generation)
+POST   /rag/retrieve            - Vector search only
+POST   /rag/query               - Full RAG with generation
+
+# Configuration (Admin)
+PUT    /rag/sources/:id/visibility  - Update source visibility
+PUT    /rag/sources/:id/config      - Update system_message & grounding_rules (Planned)
 ```
-
----
-
-## Failure Summary
-
-| Code | Stage | Meaning |
-|------|-------|---------|
-| `PARSE_ERROR` | Ingestion | Cannot parse document |
-| `EMBEDDING_FAILED` | Ingestion/Retrieval | Embedding model error |
-| `NO_RESULTS` | Retrieval | No relevant docs found |
-| `INDEX_UNAVAILABLE` | Retrieval | Vector DB down |
-| `CONTEXT_OVERFLOW` | Context Assembly | Cannot fit context |
-| `GENERATION_FAILED` | Answering | LLM error |
-| `NOT_GROUNDED` | Grounding | Answer not supported |
-| `PERMISSION_DENIED` | Any | User lacks access |
 
 ---
 
 ## Contract Compliance Checklist
 
-- [ ] Ingestion contract implemented
-- [ ] Retrieval contract implemented (with reranking)
-- [ ] Context assembly contract implemented
-- [ ] Grounding contract implemented
-- [ ] Answering contract implemented
-- [ ] Data source RBAC enforced
-- [ ] API endpoints implemented
+### Core Pipeline
+- [x] Ingestion contract implemented
+- [x] Retrieval contract implemented
+- [x] Context assembly contract implemented
+- [x] Answering contract implemented
+- [x] Data source RBAC enforced (visibility)
+
+### Guardrails (Planned)
+- [ ] Pre-query validation implemented
+- [ ] Post-generation validation implemented
+- [ ] Grounding rules enforcement
+- [ ] System message injection
+
+### Admin & Audit (Planned)
+- [ ] Guardrail logging to database
+- [ ] Admin notification on violations
+- [ ] Admin panel for review

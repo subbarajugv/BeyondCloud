@@ -76,6 +76,7 @@ async def ingest_file(
     chunk_size: int = Form(500),
     chunk_overlap: int = Form(50),
     visibility: str = Form("private"),
+    collection_id: Optional[str] = Form(None),
     db: AsyncSession = Depends(get_db),
     user: UserWithRole = Depends(get_current_user_with_role),
 ):
@@ -85,6 +86,8 @@ async def ingest_file(
     Visibility options:
     - private: Only the user can see this source (default)
     - shared: All users can see this source (requires admin role)
+    
+    The original file is stored and can be downloaded later.
     """
     # Only admins can create shared sources
     if visibility == "shared" and not has_min_role(user.role, "admin"):
@@ -94,31 +97,31 @@ async def ingest_file(
         )
     
     # Read file content
-    content = await file.read()
+    file_bytes = await file.read()
     
     # Detect file type and extract text
     filename = file.filename or "uploaded_file"
     
     if filename.endswith(".txt"):
-        text_content = content.decode("utf-8")
+        text_content = file_bytes.decode("utf-8")
     elif filename.endswith(".md"):
-        text_content = content.decode("utf-8")
+        text_content = file_bytes.decode("utf-8")
     elif filename.endswith(".pdf"):
         # Extract text from PDF
         from pypdf import PdfReader
         import io
-        reader = PdfReader(io.BytesIO(content))
+        reader = PdfReader(io.BytesIO(file_bytes))
         text_content = "\n".join(page.extract_text() for page in reader.pages)
     elif filename.endswith(".docx"):
         # Extract text from DOCX
         from docx import Document
         import io
-        doc = Document(io.BytesIO(content))
+        doc = Document(io.BytesIO(file_bytes))
         text_content = "\n".join(para.text for para in doc.paragraphs)
     elif filename.endswith(".html") or filename.endswith(".htm"):
         # Extract text from HTML
         from bs4 import BeautifulSoup
-        soup = BeautifulSoup(content.decode("utf-8"), "html.parser")
+        soup = BeautifulSoup(file_bytes.decode("utf-8"), "html.parser")
         # Remove script and style elements
         for element in soup(["script", "style"]):
             element.decompose()
@@ -126,7 +129,7 @@ async def ingest_file(
     else:
         # Try as plain text
         try:
-            text_content = content.decode("utf-8")
+            text_content = file_bytes.decode("utf-8")
         except UnicodeDecodeError:
             raise HTTPException(400, "Unsupported file type")
     
@@ -138,7 +141,9 @@ async def ingest_file(
         chunk_size=chunk_size,
         chunk_overlap=chunk_overlap,
         visibility=visibility,
-        metadata={"original_filename": filename, "file_size": len(content)},
+        metadata={"original_filename": filename, "file_size": len(file_bytes)},
+        file_content=file_bytes,  # Store original file for download
+        collection_id=collection_id,
     )
     await export_spans_to_db(db)
     return IngestResponse(
@@ -400,3 +405,202 @@ async def update_settings(
     # Return updated settings
     return await get_settings(db, user_id)
 
+
+# ========== Collection Endpoints ==========
+
+from app.services.collection_service import collection_service
+from fastapi.responses import Response
+from pydantic import BaseModel
+from typing import Optional, List as TypingList
+
+class CollectionCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    parent_id: Optional[str] = None
+    visibility: str = "personal"
+    allowed_roles: Optional[TypingList[str]] = None
+    allowed_teams: Optional[TypingList[str]] = None
+    allowed_users: Optional[TypingList[str]] = None
+
+class CollectionUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    visibility: Optional[str] = None
+    allowed_roles: Optional[TypingList[str]] = None
+    allowed_teams: Optional[TypingList[str]] = None
+    allowed_users: Optional[TypingList[str]] = None
+
+class CollectionMove(BaseModel):
+    new_parent_id: Optional[str] = None
+
+
+@router.get("/collections")
+async def list_collections(
+    tree: bool = False,
+    db: AsyncSession = Depends(get_db),
+    user: UserWithRole = Depends(get_current_user_with_role),
+):
+    """List all collections accessible to the current user"""
+    user_roles = [user.role] if user.role else []
+    
+    if tree:
+        return await collection_service.list_tree(db, user.id, user_roles)
+    else:
+        return await collection_service.list_accessible(db, user.id, user_roles)
+
+
+@router.post("/collections")
+async def create_collection(
+    request: CollectionCreate,
+    db: AsyncSession = Depends(get_db),
+    user: UserWithRole = Depends(get_current_user_with_role),
+):
+    """Create a new collection"""
+    # Only admins can create non-personal collections
+    if request.visibility != "personal" and not has_min_role(user.role, "admin"):
+        raise HTTPException(403, "Only admins can create public/role/team collections")
+    
+    return await collection_service.create(
+        db=db,
+        user_id=user.id,
+        name=request.name,
+        parent_id=request.parent_id,
+        description=request.description,
+        visibility=request.visibility,
+        allowed_roles=request.allowed_roles,
+        allowed_teams=request.allowed_teams,
+        allowed_users=request.allowed_users,
+    )
+
+
+@router.get("/collections/{collection_id}")
+async def get_collection(
+    collection_id: str,
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+):
+    """Get a specific collection"""
+    collection = await collection_service.get(db, collection_id)
+    if not collection:
+        raise HTTPException(404, "Collection not found")
+    return collection
+
+
+@router.put("/collections/{collection_id}")
+async def update_collection(
+    collection_id: str,
+    request: CollectionUpdate,
+    db: AsyncSession = Depends(get_db),
+    user: UserWithRole = Depends(get_current_user_with_role),
+):
+    """Update a collection"""
+    collection = await collection_service.get(db, collection_id)
+    if not collection:
+        raise HTTPException(404, "Collection not found")
+    
+    # Only owner or admin can update
+    is_owner = collection["user_id"] == user.id
+    if not is_owner and not has_min_role(user.role, "admin"):
+        raise HTTPException(403, "Permission denied")
+    
+    # Only admins can change visibility from personal
+    if request.visibility and request.visibility != "personal" and not has_min_role(user.role, "admin"):
+        raise HTTPException(403, "Only admins can set non-personal visibility")
+    
+    await collection_service.update(
+        db=db,
+        collection_id=collection_id,
+        name=request.name,
+        description=request.description,
+        visibility=request.visibility,
+        allowed_roles=request.allowed_roles,
+        allowed_teams=request.allowed_teams,
+        allowed_users=request.allowed_users,
+    )
+    return {"message": "Collection updated", "collection_id": collection_id}
+
+
+@router.delete("/collections/{collection_id}")
+async def delete_collection(
+    collection_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: UserWithRole = Depends(get_current_user_with_role),
+):
+    """Delete a collection (cascades to children and sources)"""
+    collection = await collection_service.get(db, collection_id)
+    if not collection:
+        raise HTTPException(404, "Collection not found")
+    
+    # Only owner or admin can delete
+    is_owner = collection["user_id"] == user.id
+    if not is_owner and not has_min_role(user.role, "admin"):
+        raise HTTPException(403, "Permission denied")
+    
+    deleted = await collection_service.delete(db, collection_id, user.id if is_owner else collection["user_id"])
+    if not deleted:
+        raise HTTPException(500, "Failed to delete collection")
+    
+    return {"message": "Collection deleted", "collection_id": collection_id}
+
+
+@router.post("/collections/{collection_id}/move")
+async def move_collection(
+    collection_id: str,
+    request: CollectionMove,
+    db: AsyncSession = Depends(get_db),
+    user: UserWithRole = Depends(get_current_user_with_role),
+):
+    """Move a collection to a new parent"""
+    collection = await collection_service.get(db, collection_id)
+    if not collection:
+        raise HTTPException(404, "Collection not found")
+    
+    if collection["user_id"] != user.id and not has_min_role(user.role, "admin"):
+        raise HTTPException(403, "Permission denied")
+    
+    try:
+        await collection_service.move(db, collection_id, request.new_parent_id)
+        return {"message": "Collection moved", "collection_id": collection_id, "new_parent_id": request.new_parent_id}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+# ========== File Download ==========
+
+@router.get("/sources/{source_id}/download")
+async def download_source_file(
+    source_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: UserWithRole = Depends(get_current_user_with_role),
+):
+    """Download the original file for a source"""
+    source = await rag_service.get_source(db, source_id)
+    if not source:
+        raise HTTPException(404, "Source not found")
+    
+    # Check access
+    is_owner = source["user_id"] == user.id
+    is_shared = source["visibility"] == "shared"
+    if not is_owner and not is_shared and not has_min_role(user.role, "admin"):
+        raise HTTPException(403, "Permission denied")
+    
+    result = await rag_service.download_source(db, source_id)
+    if not result:
+        raise HTTPException(404, "No file stored for this source")
+    
+    file_bytes, filename = result
+    
+    # Determine content type
+    content_type = "application/octet-stream"
+    if filename.endswith(".pdf"):
+        content_type = "application/pdf"
+    elif filename.endswith(".txt") or filename.endswith(".md"):
+        content_type = "text/plain"
+    elif filename.endswith(".docx"):
+        content_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    
+    return Response(
+        content=file_bytes,
+        media_type=content_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )

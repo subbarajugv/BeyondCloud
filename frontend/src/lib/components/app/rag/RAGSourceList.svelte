@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { ragStore } from '$lib/stores/ragStore.svelte';
 	import { authStore } from '$lib/stores/auth.svelte';
-	import { Trash2, FileText, CheckSquare, Square, Loader2, Globe, Lock } from '@lucide/svelte';
+	import { Trash2, FileText, CheckSquare, Square, Loader2, Globe, Lock, Download } from '@lucide/svelte';
 	import { Button } from '$lib/components/ui/button';
 
 	interface Props {
@@ -46,6 +46,11 @@
 	function toggleSelection(e: Event, sourceId: string) {
 		e.stopPropagation();
 		ragStore.toggleSourceSelection(sourceId);
+	}
+
+	async function handleDownload(e: Event, sourceId: string) {
+		e.stopPropagation();
+		await ragStore.downloadSource(sourceId);
 	}
 </script>
 
@@ -133,6 +138,19 @@
 						{:else}
 							<Globe class="h-3.5 w-3.5 text-muted-foreground" />
 						{/if}
+					</Button>
+				{/if}
+
+				<!-- Download button (if file stored) -->
+				{#if (source as any).has_file}
+					<Button
+						variant="ghost"
+						size="icon"
+						class="h-6 w-6 flex-shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
+						onclick={(e) => handleDownload(e, source.id)}
+						title="Download original file"
+					>
+						<Download class="h-3.5 w-3.5 text-muted-foreground" />
 					</Button>
 				{/if}
 

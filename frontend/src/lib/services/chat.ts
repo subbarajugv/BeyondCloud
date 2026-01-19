@@ -1,6 +1,7 @@
 import { config } from '$lib/stores/settings.svelte';
 import { selectedModelName } from '$lib/stores/models.svelte';
 import { slotsService } from './slots';
+import { ragStore } from '$lib/stores/ragStore.svelte';
 import type {
 	ApiChatCompletionRequest,
 	ApiChatCompletionResponse,
@@ -134,7 +135,21 @@ export class ChatService {
 				return true;
 			});
 
-		const processedMessages = this.injectSystemMessage(normalizedMessages);
+		// Get RAG context if enabled and sources are selected
+		let ragContext: string | null = null;
+		if (ragStore.isRagActive && normalizedMessages.length > 0) {
+			const lastUserMessage = [...normalizedMessages].reverse().find(m => m.role === 'user');
+			if (lastUserMessage) {
+				const userQuery = typeof lastUserMessage.content === 'string'
+					? lastUserMessage.content
+					: '';
+				if (userQuery.trim()) {
+					ragContext = await ragStore.buildContextFromQuery(userQuery);
+				}
+			}
+		}
+
+		const processedMessages = this.injectSystemMessage(normalizedMessages, ragContext);
 
 		const requestBody: ApiChatCompletionRequest = {
 			messages: processedMessages.map((msg: ApiChatMessageData) => ({
@@ -800,20 +815,32 @@ export class ChatService {
 	 * @returns Array of messages with system message injected at the beginning if configured
 	 * @private
 	 */
-	private injectSystemMessage(messages: ApiChatMessageData[]): ApiChatMessageData[] {
+	private injectSystemMessage(
+		messages: ApiChatMessageData[],
+		ragContext?: string | null
+	): ApiChatMessageData[] {
 		const currentConfig = config();
 		const systemMessage = currentConfig.systemMessage?.toString().trim();
 
-		if (!systemMessage) {
+		// Combine RAG context with system message
+		let fullSystemMessage = '';
+		if (ragContext) {
+			fullSystemMessage = ragContext + '\n\n';
+		}
+		if (systemMessage) {
+			fullSystemMessage += systemMessage;
+		}
+
+		if (!fullSystemMessage.trim()) {
 			return messages;
 		}
 
 		if (messages.length > 0 && messages[0].role === 'system') {
-			if (messages[0].content !== systemMessage) {
+			if (messages[0].content !== fullSystemMessage) {
 				const updatedMessages = [...messages];
 				updatedMessages[0] = {
 					role: 'system',
-					content: systemMessage
+					content: fullSystemMessage
 				};
 				return updatedMessages;
 			}
@@ -823,7 +850,7 @@ export class ChatService {
 
 		const systemMsg: ApiChatMessageData = {
 			role: 'system',
-			content: systemMessage
+			content: fullSystemMessage
 		};
 
 		return [systemMsg, ...messages];

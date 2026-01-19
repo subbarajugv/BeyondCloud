@@ -46,6 +46,15 @@ class Settings(BaseSettings):
     reranker_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"  # Fast cross-encoder
     embedding_dimension: int = 384  # Must match the embedding model output
     
+    # Storage Settings (local for dev, s3 for production)
+    storage_type: str = "local"  # "local" or "s3"
+    storage_local_path: str = "./storage"  # For local storage
+    s3_bucket: Optional[str] = None
+    s3_endpoint: Optional[str] = None  # MinIO: http://localhost:9000
+    s3_access_key: Optional[str] = None
+    s3_secret_key: Optional[str] = None
+    s3_region: str = "us-east-1"
+    
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Square, ArrowUp } from '@lucide/svelte';
+	import { Square, ArrowUp, Database } from '@lucide/svelte';
 	import { Button } from '$lib/components/ui/button';
 	import {
 		ChatFormActionFileAttachments,
@@ -8,6 +8,7 @@
 		ChatFormProviderSelector
 	} from '$lib/components/app';
 	import { config } from '$lib/stores/settings.svelte';
+	import { ragStore } from '$lib/stores/ragStore.svelte';
 	import type { FileTypeCategory } from '$lib/enums/files';
 
 	interface Props {
@@ -33,10 +34,27 @@
 	}: Props = $props();
 
 	let currentConfig = $derived(config());
+	const hasSelectedSources = $derived(ragStore.selectedSourceIds.length > 0);
+	const isRagActive = $derived(ragStore.isRagActive);
 </script>
 
 <div class="flex w-full items-center gap-2 {className}">
 	<ChatFormActionFileAttachments class="mr-auto" {disabled} {onFileUpload} />
+
+	<!-- RAG Toggle -->
+	{#if hasSelectedSources}
+		<Button
+			type="button"
+			variant={isRagActive ? "default" : "ghost"}
+			size="sm"
+			class="h-8 gap-1.5 px-2 {isRagActive ? 'bg-primary/90' : ''}"
+			onclick={() => ragStore.toggleRag()}
+			title={isRagActive ? 'RAG enabled - click to disable' : 'RAG disabled - click to enable'}
+		>
+			<Database class="h-4 w-4" />
+			<span class="text-xs">{ragStore.selectedSourceIds.length}</span>
+		</Button>
+	{/if}
 
 	{#if currentConfig.modelSelectorEnabled}
 		<ChatFormProviderSelector class="shrink-0" />

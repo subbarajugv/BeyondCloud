@@ -1,10 +1,11 @@
 <script lang="ts">
 	import { ragStore } from '$lib/stores/ragStore.svelte';
 	import { authStore } from '$lib/stores/auth.svelte';
-	import { Upload, FileText, X, Loader2, Globe, Lock } from '@lucide/svelte';
+	import { Upload, FileText, X, Loader2, Globe, Lock, Folder } from '@lucide/svelte';
 	import { Button } from '$lib/components/ui/button';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import type { VisibilityType } from '$lib/services/ragApi';
+	import { onMount } from 'svelte';
 
 	interface Props {
 		open: boolean;
@@ -21,9 +22,19 @@
 	let chunkOverlap = $state(50);
 	let visibility = $state<VisibilityType>('private');
 	let isDragging = $state(false);
+	let selectedCollectionId = $state<string | null>(null);
 
 	const acceptedTypes = '.txt,.md,.pdf,.docx,.html';
 	const isAdmin = $derived(authStore.isAdmin);
+
+	// Load collections when dialog opens
+	$effect(() => {
+		if (open) {
+			ragStore.loadCollections();
+			// Default to current collection
+			selectedCollectionId = ragStore.currentCollectionId;
+		}
+	});
 
 	function reset() {
 		mode = 'file';
@@ -32,6 +43,7 @@
 		selectedFile = null;
 		isDragging = false;
 		visibility = 'private';
+		selectedCollectionId = ragStore.currentCollectionId;
 	}
 
 	function handleDragOver(e: DragEvent) {
@@ -62,7 +74,13 @@
 	async function handleUpload() {
 		let success = false;
 		if (mode === 'file' && selectedFile) {
-			success = await ragStore.ingestFile(selectedFile, chunkSize, chunkOverlap, visibility);
+			success = await ragStore.ingestFileToCollection(
+				selectedFile, 
+				selectedCollectionId,
+				chunkSize, 
+				chunkOverlap, 
+				visibility
+			);
 		} else if (mode === 'text' && textName && textContent) {
 			success = await ragStore.ingestText(textName, textContent, chunkSize, chunkOverlap, visibility);
 		}
@@ -161,6 +179,25 @@
 						rows={8}
 						class="w-full resize-none rounded-md border bg-background px-3 py-2 text-sm"
 					></textarea>
+				</div>
+			{/if}
+
+			<!-- Folder picker -->
+			{#if ragStore.collections.length > 0}
+				<div class="rounded-md border bg-muted/30 p-3">
+					<label class="mb-2 block text-sm font-medium">
+						<Folder class="mr-1.5 inline-block h-4 w-4" />
+						Save to folder
+					</label>
+					<select
+						bind:value={selectedCollectionId}
+						class="w-full rounded-md border bg-background px-3 py-2 text-sm"
+					>
+						<option value={null}>No folder (root)</option>
+						{#each ragStore.collections as collection}
+							<option value={collection.id}>{collection.name}</option>
+						{/each}
+					</select>
 				</div>
 			{/if}
 

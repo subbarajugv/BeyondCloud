@@ -1,129 +1,47 @@
-# Project Summary
+# BeyondCloud Project Summary
 
-## ✅ Project Created Successfully
-
-**Location:** `/home/subba/llama.cpp/llamacpp-auth-webui`
+A multi-user LLM interface with dual backends, RAG capabilities, and agentic tools.
 
 ## 📁 Directory Structure
 
 ```
 llamacpp-auth-webui/
-├── backend/              # Authentication API service (to be implemented)
-│   └── README.md         # Backend setup guide with 3 technology options
-├── docs/
-│   └── implementation_plan.md  # Complete technical implementation plan
-├── frontend/             # Complete copy of llama.cpp WebUI (Svelte 5)
-│   ├── src/
-│   ├── package.json
-│   ├── README.md         # Original WebUI documentation
-│   └── MODIFICATIONS.md  # Step-by-step frontend modification guide
-├── .gitignore
-└── README.md             # Main project documentation
+├── backend-nodejs/       # Auth, Conversations, and Global Settings
+├── backend-python/       # RAG System, Agent Logic, and Analytics
+├── frontend/             # Svelte 5 WebUI with authenticated routes
+├── docs/                 # Documentation & API Contracts
+├── agent-daemon/         # Background agent processes
+└── public/               # Static assets
 ```
 
-## 📚 Documentation Files
+## 🚀 Current Status
 
-1. **[README.md](file:///home/subba/llama.cpp/llamacpp-auth-webui/README.md)**
-   - Project overview
-   - Quick start guide
-   - Development roadmap
-   - Configuration examples
+| Component | Status | Technology |
+|-----------|--------|------------|
+| **Core Auth** | ✅ Done | Node.js + Express + JWT |
+| **Conversations** | ✅ Done | Node.js + PostgreSQL |
+| **RAG Ingestion** | ✅ Done | Python + FastAPI + pgvector |
+| **Vector Search** | ✅ Done | Python + FastAPI |
+| **Agent Tools** | 🚧 Beta | Python + MCP |
+| **Analytics** | ✅ Done | Python + OpenTelemetry |
 
-2. **[docs/implementation_plan.md](file:///home/subba/llama.cpp/llamacpp-auth-webui/docs/implementation_plan.md)**
-   - Complete architecture analysis
-   - Backend API specification
-   - Database schema
-   - Frontend modifications
-   - Security considerations
-   - Verification plan
+## 📚 Key Documentation
 
-3. **[backend/README.md](file:///home/subba/llama.cpp/llamacpp-auth-webui/backend/README.md)**
-   - Technology options (Node.js/Python/Go)
-   - Setup instructions for each
-   - Database configuration
-   - API endpoints reference
-   - Environment variables
+1. **[API Overview](docs/API_OVERVIEW.md)**: Service mapping and ports (3000, 8000, 8001).
+2. **[Core Contract](docs/CONTRACT.md)**: Protocol standards and error formats.
+3. **[RAG Logic](docs/RAG_CONTRACT.md)**: Ingestion and retrieval specifications.
+4. **[Database Schema](docs/DATABASE_SCHEMA.md)**: ER Diagram and security analysis.
+5. **[Implementation Phases](docs/PHASES.md)**: Roadmap and completion status.
 
-4. **[frontend/MODIFICATIONS.md](file:///home/subba/llama.cpp/llamacpp-auth-webui/frontend/MODIFICATIONS.md)**
-   - Files to create (auth store, login pages, API client)
-   - Files to modify (layout, database, services)
-   - Configuration changes
-   - Testing checklist
-   - Migration notes
+## ✨ Features
 
-## 🚀 Quick Start
-
-### Test the Frontend (Original WebUI)
-```bash
-cd /home/subba/llama.cpp/llamacpp-auth-webui/frontend
-npm install
-npm run dev
-```
-Access at: http://localhost:5173
-
-### Choose Your Backend
-Read `backend/README.md` and pick one:
-- **Node.js + Express** - JavaScript/TypeScript
-- **Python + FastAPI** - Python with auto-docs
-- **Go** - High performance
-
-### Follow Implementation Phases
-1. **Phase 1:** Backend setup (auth endpoints, database)
-2. **Phase 2:** Frontend auth (login pages, route protection)
-3. **Phase 3:** Data migration (IndexedDB → API)
-4. **Phase 4:** Testing & polish
-
-## 🎯 What's Next?
-
-1. **Choose backend technology** (see `backend/README.md`)
-2. **Set up database** (PostgreSQL or MySQL)
-3. **Implement backend API** (follow implementation plan)
-4. **Modify frontend** (follow `frontend/MODIFICATIONS.md`)
-5. **Test multi-user functionality**
-
-## 📖 Key Resources
-
-- **Implementation Plan:** Complete technical guide
-- **Backend README:** Technology choices and setup
-- **Frontend MODIFICATIONS:** Step-by-step changes
-- **Main README:** Project overview
-
-## ✨ Features to Implement
-
-### Backend
-- [ ] User registration/login endpoints
-- [ ] JWT authentication
-- [ ] Conversation CRUD APIs
-- [ ] Message CRUD APIs
-- [ ] Settings API
-- [ ] llama.cpp proxy endpoint
-
-### Frontend
-- [ ] Auth store
-- [ ] Login/register pages
-- [ ] Route protection
-- [ ] API client service
-- [ ] Replace IndexedDB with API calls
-- [ ] User profile component
-
-### Testing
-- [ ] Backend unit tests
-- [ ] API integration tests
-- [ ] Frontend authentication flow
-- [ ] Multi-user isolation
-- [ ] Session persistence
-
-## 🔒 Security Features
-
-- Password hashing (bcrypt/argon2)
-- JWT tokens
-- HTTP-only cookies
-- CORS configuration
-- Rate limiting
-- Input validation
-- SQL injection prevention
+- **Authentication**: JWT-based auth with refresh token rotation and RBAC.
+- **RAG System**: Ingest documents (PDF, Text) and query them with semantic search.
+- **Agentic Chat**: Support for tool calling and Model Context Protocol (MCP).
+- **Dual Backend**: Optimized performance with Node.js for I/O and Python for AI logic.
+- **Multi-User**: Strict data isolation and role-based access control.
 
 ---
 
-**Status:** ✅ Ready for development
-**Next Step:** Choose your backend technology and start Phase 1!
+**Last Updated:** 2026-01-19  
+**Status:** 🚀 Active Development (Phase 4/5)

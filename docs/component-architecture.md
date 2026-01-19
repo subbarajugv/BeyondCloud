@@ -16,21 +16,22 @@ This document defines the independent components of the llama.cpp Authenticated 
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────────┐   │
 │  │ Auth UI      │  │ Chat UI      │  │ Settings UI              │   │
 │  │ - Login      │  │ - Messages   │  │ - Providers              │   │
-│  │ - Register   │  │ - Sidebar    │  │ - MCP Servers            │   │
+│  │ - Register   │  │ - Sidebar    │  │ - User Menu              │   │
 │  └──────────────┘  └──────────────┘  └──────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────────┘
                               │
                     REST API (Defined Contract)
-                    See: api-contract.md
+                    See: API_OVERVIEW.md
                               │
               ┌───────────────┴───────────────┐
               ▼                               ▼
 ┌──────────────────────────┐    ┌──────────────────────────┐
-│   BACKEND-PYTHON         │ OR │   BACKEND-NODEJS         │
+│   BACKEND-PYTHON         │    │   BACKEND-NODEJS         │
 │   (FastAPI)              │    │   (Express)              │
 │                          │    │                          │
-│  Same API Contract!      │    │  Same API Contract!      │
-│  Choose your preference  │    │  Choose your preference  │
+│  - RAG System            │    │  - Auth Service          │
+│  - Agent Logic           │    │  - Conversations         │
+│  - Analytics             │    │  - Settings Persistence  │
 └──────────────────────────┘    └──────────────────────────┘
               │                               │
               └───────────────┬───────────────┘
@@ -136,7 +137,7 @@ class ApiClient {
 
 ### Backend API Contract
 
-See `api-contract.md` for full specification.
+See [API_OVERVIEW.md](API_OVERVIEW.md) for full specification and service mapping.
 
 ---
 

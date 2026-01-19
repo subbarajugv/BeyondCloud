@@ -35,7 +35,52 @@ This document outlines the strategic initiatives required to transform BeyondClo
     *   Sidebar to view/edit agent plans before execution
     *   Detailed execution logs and "Step-Back" debugging
 
-## 🛡️ 4. Enterprise Hardening (Governance)
+## 📚 4. Advanced RAG Pipeline
+*   [ ] **RAG Settings UI**
+    *   Embedding model selector (MiniLM, MPNet, BGE)
+    *   Reranker model selector
+    *   Hybrid search toggle + BM25 weight slider
+    *   Reranking toggle + top-k setting
+*   [ ] **Context Assembly Options**
+    *   Ordering: Score descending, chronological, source-grouped
+    *   Max context token limit
+    *   Context compression (summarize long chunks)
+*   [ ] **LLM Reranking**
+    *   Send top-N candidates to LLM for relevance scoring
+    *   Re-sort by LLM confidence
+*   [ ] **Guardrails**
+    *   Pre-query validation (PII detection, toxicity, blocklist)
+    *   Post-generation validation (hallucination check, citation required)
+    *   Admin dashboard for guardrail violations
+
+## 🔐 5. GDPR & Data Compliance
+*   [ ] **Right to Erasure (Delete All)**
+    *   `DELETE /api/users/:id/data` - Purge all user sources, chunks, collections
+    *   Clean storage files (local + S3)
+    *   Clear FAISS/BM25 indices
+    *   Audit log with deletion timestamp
+*   [ ] **Right to Portability (Export)**
+    *   `GET /api/users/:id/export` - Export all data as ZIP
+    *   Include: sources, chunks, collections, traces
+*   [ ] **Data Retention Policies**
+    *   Configurable auto-delete after N days
+    *   Admin UI for retention settings
+*   [ ] **Delete Operation Tracing**
+    *   Add spans for all delete operations
+    *   Log who deleted what and when
+
+## 📊 6. Full Observability
+*   [ ] **OpenTelemetry Migration**
+    *   Replace PostgreSQL spans with OTel SDK
+    *   Export to Jaeger/Tempo/Grafana
+*   [ ] **Metrics Dashboard**
+    *   RAG query latency, retrieval precision
+    *   Token usage, embedding costs
+*   [ ] **Audit Trail UI**
+    *   Admin view of all traces
+    *   Filter by user, operation, time
+
+## 🛡️ 7. Enterprise Hardening (Governance)
 *   [ ] **Intelligent Model Routing**
     *   Cost/Speed optimization: Route small tasks to 1B models, logic to 32B+ models
     *   Local vs. Cloud routing based on data sensitivity
@@ -45,3 +90,4 @@ This document outlines the strategic initiatives required to transform BeyondClo
 *   [ ] **Active Hallucination Detection**
     *   Automated "Reflexion" step to check answers against sources
     *   Confidence scoring for all RAG responses
+

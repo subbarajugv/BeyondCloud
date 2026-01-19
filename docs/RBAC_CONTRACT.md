@@ -1,8 +1,8 @@
-# Access Control Contract (RBAC)
+# Access Control Contract (RBAC) - BeyondCloud
 
 **Version**: 1.0  
-**Status**: Draft  
-**Last Updated**: 2026-01-11
+**Status**: Active  
+**Last Updated**: 2026-01-19
 
 Role-Based Access Control for Agents, RAG, and system resources.
 
