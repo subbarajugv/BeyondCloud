@@ -1,18 +1,11 @@
 #!/usr/bin/env python3
 """
-BeyondCloud Local Agent Daemon
+BeyondCloud Local Agent Daemon (MCP Unified Version)
 
 A lightweight local daemon that enables the AI to work with files on your machine.
 Runs on localhost:8002 and only accepts connections from your browser.
 
-Usage:
-    python agent_daemon.py [--port 8002] [--sandbox /path/to/folder]
-
-The daemon will:
-- Listen on localhost only (not accessible from network)
-- Execute file operations (read, write, list, search)
-- Execute shell commands (with your approval)
-- Provide tool schemas for LLM function calling
+Unifies local tool capabilities with the BeyondCloud MCP architecture.
 """
 
 import os
@@ -20,10 +13,14 @@ import sys
 import uuid
 import argparse
 import subprocess
-import fnmatch
+import json
+import asyncio
+import logging
+import base64
+import tempfile
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 from enum import Enum
 
 # Try to import FastAPI - if not available, provide helpful error
@@ -34,168 +31,73 @@ try:
     import uvicorn
 except ImportError:
     print("Missing dependencies. Install with:")
-    print("  pip install fastapi uvicorn pydantic")
+    print("  pip install fastapi uvicorn pydantic duckduckgo-search playwright")
     sys.exit(1)
 
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger("agent-daemon")
 
 # ========== Configuration ==========
 
 DEFAULT_PORT = 8002
-VERSION = "1.0.0"
+VERSION = "2.0.0"
 
+# ========== MCP Models ==========
 
-# ========== Models ==========
+@dataclass
+class Tool:
+    """MCP Tool definition"""
+    name: str
+    description: str
+    inputSchema: Dict[str, Any]
+
+@dataclass
+class ToolResult:
+    """Result from tool execution"""
+    content: List[Dict[str, Any]]
+    isError: bool = False
+
+# ========== API Models ==========
 
 class ApprovalMode(str, Enum):
     REQUIRE_APPROVAL = "require_approval"
     TRUST_MODE = "trust_mode"
 
-
 class SetSandboxRequest(BaseModel):
     path: str
-
 
 class SetModeRequest(BaseModel):
     mode: ApprovalMode
 
-
-class ExecuteToolRequest(BaseModel):
-    tool_name: str
-    args: Dict[str, Any]
+class ToolCallRequest(BaseModel):
+    name: str
+    arguments: Dict[str, Any]
     approved: bool = False
-
 
 class ToolCallPending(BaseModel):
     id: str
-    tool_name: str
-    args: Dict[str, Any]
+    name: str
+    arguments: Dict[str, Any]
     safety_level: str
 
-
-# ========== Tool Schemas for LLM ==========
-
-TOOL_SCHEMAS = [
-    {
-        "type": "function",
-        "function": {
-            "name": "read_file",
-            "description": "Read the contents of a file in the working directory",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "path": {
-                        "type": "string",
-                        "description": "Relative path to the file within the working directory"
-                    }
-                },
-                "required": ["path"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "write_file",
-            "description": "Write content to a file in the working directory",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "path": {
-                        "type": "string",
-                        "description": "Relative path to the file"
-                    },
-                    "content": {
-                        "type": "string",
-                        "description": "Content to write to the file"
-                    }
-                },
-                "required": ["path", "content"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "list_dir",
-            "description": "List files and directories in the working directory",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "path": {
-                        "type": "string",
-                        "description": "Relative path to list (default: current directory)"
-                    }
-                },
-                "required": []
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "search_files",
-            "description": "Search for files matching a pattern",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "pattern": {
-                        "type": "string",
-                        "description": "Glob pattern to search for (e.g., '*.py', '**/*.ts')"
-                    },
-                    "path": {
-                        "type": "string",
-                        "description": "Starting directory (default: current)"
-                    }
-                },
-                "required": ["pattern"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "run_command",
-            "description": "Run a shell command in the working directory",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "cmd": {
-                        "type": "string",
-                        "description": "Command to execute"
-                    }
-                },
-                "required": ["cmd"]
-            }
-        }
-    }
-]
-
-
-# ========== Sandbox Security ==========
-
-SAFE_COMMANDS = {
-    "ls", "cat", "head", "tail", "less", "more", "wc", "file",
-    "find", "grep", "egrep", "fgrep", "awk", "sed",
-    "tree", "du", "df", "stat", "pwd", "echo",
-    "git", "python", "node", "npm", "pip",
-}
+# ========== Sandbox Security Logic ==========
 
 DANGEROUS_PATTERNS = [
-    "rm -rf", "rm -r", "rmdir",
-    "sudo", "su ",
-    "> /dev", ">/dev",
-    "chmod 777", "chmod -R",
-    "curl", "wget", "nc ", "netcat",
-    "eval", "exec",
-    "$(", "`",
-    "&&", "||", ";",
+    "rm -rf", "rm -r", "rmdir", "sudo", "su ", "> /dev", ">/dev",
+    "chmod 777", "chmod -R", "curl", "wget", "nc ", "netcat",
+    "eval", "exec", "$(", "`", "&&", "||", ";"
 ]
 
+SAFE_COMMANDS = {
+    "ls", "cat", "head", "tail", "wc", "file", "find", "grep", 
+    "tree", "du", "df", "stat", "pwd", "echo", "git", "python", 
+    "node", "npm", "pip"
+}
 
 def classify_command(cmd: str) -> Tuple[str, str]:
     """Classify command safety level"""
     cmd_lower = cmd.lower().strip()
-    
     for pattern in DANGEROUS_PATTERNS:
         if pattern in cmd_lower:
             return "dangerous", f"Contains dangerous pattern: {pattern}"
@@ -206,138 +108,141 @@ def classify_command(cmd: str) -> Tuple[str, str]:
     
     return "moderate", "Unknown command - requires approval"
 
-
 class SandboxGuard:
     """Ensures all file operations stay within sandbox"""
-    
     def __init__(self, sandbox_path: str):
         expanded = os.path.expanduser(sandbox_path)
         self.sandbox_path = Path(expanded).resolve()
-        
-        if not self.sandbox_path.exists():
-            raise ValueError(f"Path does not exist: {sandbox_path}")
-        if not self.sandbox_path.is_dir():
-            raise ValueError(f"Not a directory: {sandbox_path}")
-    
+        if not self.sandbox_path.exists() or not self.sandbox_path.is_dir():
+            raise ValueError(f"Invalid sandbox directory: {sandbox_path}")
+
     def resolve_path(self, path: str) -> Path:
         """Resolve path within sandbox, raise if escapes"""
         if not path or path == ".":
             return self.sandbox_path
-            
         if os.path.isabs(path):
             full_path = Path(path).resolve()
         else:
             full_path = (self.sandbox_path / path).resolve()
-        
         try:
             full_path.relative_to(self.sandbox_path)
             return full_path
         except ValueError:
             raise PermissionError(f"Path escapes sandbox: {path}")
 
+# ========== MCP Tool Implementation Class ==========
 
-# ========== Agent Tools ==========
-
-class AgentTools:
-    """Local file and command operations"""
-    
+class BeyondCloudLocalMCP:
+    """Local implementation of the unified MCP tools"""
     def __init__(self, sandbox_path: str):
         self.guard = SandboxGuard(sandbox_path)
         self.sandbox_path = self.guard.sandbox_path
-    
-    def read_file(self, path: str) -> Dict[str, Any]:
-        try:
-            resolved = self.guard.resolve_path(path)
-            if not resolved.exists():
-                return {"error": f"File not found: {path}"}
-            if not resolved.is_file():
-                return {"error": f"Not a file: {path}"}
-            
-            content = resolved.read_text(encoding='utf-8', errors='replace')
-            return {"content": content, "path": str(resolved), "size": len(content)}
-        except PermissionError as e:
-            return {"error": str(e)}
-        except Exception as e:
-            return {"error": f"Read error: {e}"}
-    
-    def write_file(self, path: str, content: str) -> Dict[str, Any]:
-        try:
-            resolved = self.guard.resolve_path(path)
-            resolved.parent.mkdir(parents=True, exist_ok=True)
-            resolved.write_text(content, encoding='utf-8')
-            return {"success": True, "path": str(resolved), "bytes": len(content)}
-        except PermissionError as e:
-            return {"error": str(e)}
-        except Exception as e:
-            return {"error": f"Write error: {e}"}
-    
-    def list_dir(self, path: str = ".") -> Dict[str, Any]:
-        try:
-            resolved = self.guard.resolve_path(path)
-            if not resolved.exists():
-                return {"error": f"Directory not found: {path}"}
-            if not resolved.is_dir():
-                return {"error": f"Not a directory: {path}"}
-            
-            entries = []
-            for item in sorted(resolved.iterdir()):
-                entry = {
-                    "name": item.name,
-                    "type": "directory" if item.is_dir() else "file",
-                }
-                if item.is_file():
-                    entry["size"] = item.stat().st_size
-                entries.append(entry)
-            
-            return {"entries": entries, "count": len(entries), "path": str(resolved)}
-        except PermissionError as e:
-            return {"error": str(e)}
-        except Exception as e:
-            return {"error": f"List error: {e}"}
-    
-    def search_files(self, pattern: str, path: str = ".") -> Dict[str, Any]:
-        try:
-            resolved = self.guard.resolve_path(path)
-            matches = []
-            
-            for item in resolved.rglob(pattern):
-                try:
-                    rel_path = item.relative_to(self.sandbox_path)
-                    matches.append({
-                        "path": str(rel_path),
-                        "type": "directory" if item.is_dir() else "file"
-                    })
-                except ValueError:
-                    continue
-                
-                if len(matches) >= 100:
-                    break
-            
-            return {"matches": matches, "count": len(matches), "pattern": pattern}
-        except Exception as e:
-            return {"error": f"Search error: {e}"}
-    
-    def run_command(self, cmd: str, timeout: int = 30) -> Dict[str, Any]:
-        try:
-            result = subprocess.run(
-                cmd,
-                shell=True,
-                cwd=str(self.sandbox_path),
-                capture_output=True,
-                text=True,
-                timeout=timeout
-            )
-            return {
-                "stdout": result.stdout,
-                "stderr": result.stderr,
-                "exit_code": result.returncode,
-                "command": cmd
-            }
-        except subprocess.TimeoutExpired:
-            return {"error": f"Command timed out after {timeout}s", "command": cmd}
-        except Exception as e:
-            return {"error": f"Command error: {e}", "command": cmd}
+        self._tools = self._register_tools()
 
+    def _register_tools(self) -> Dict[str, Tool]:
+        return {
+            "web_search": Tool(name="web_search", description="Search the web (DuckDuckGo)", 
+                               inputSchema={"type": "object", "properties": {"query": {"type": "string"}, "num_results": {"type": "integer", "default": 5}}, "required": ["query"]}),
+            "screenshot": Tool(name="screenshot", description="Capture webpage screenshot", 
+                               inputSchema={"type": "object", "properties": {"url": {"type": "string"}, "full_page": {"type": "boolean", "default": False}}, "required": ["url"]}),
+            "python_executor": Tool(name="python_executor", description="Execute sandboxed Python code", 
+                                    inputSchema={"type": "object", "properties": {"code": {"type": "string"}, "timeout": {"type": "integer", "default": 10}}, "required": ["code"]}),
+            "database_query": Tool(name="database_query", description="Execute read-only SQL query", 
+                                   inputSchema={"type": "object", "properties": {"sql": {"type": "string"}}, "required": ["sql"]}),
+            "read_file": Tool(name="read_file", description="Read file from sandbox", 
+                             inputSchema={"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]}),
+            "write_file": Tool(name="write_file", description="Write file to sandbox", 
+                              inputSchema={"type": "object", "properties": {"path": {"type": "string"}, "content": {"type": "string"}}, "required": ["path", "content"]}),
+            "list_dir": Tool(name="list_dir", description="List directory contents", 
+                            inputSchema={"type": "object", "properties": {"path": {"type": "string", "default": "."}}, "required": []}),
+            "search_files": Tool(name="search_files", description="Search files by pattern", 
+                                inputSchema={"type": "object", "properties": {"pattern": {"type": "string"}, "path": {"type": "string", "default": "."}}, "required": ["pattern"]}),
+            "run_command": Tool(name="run_command", description="Run shell command in sandbox", 
+                               inputSchema={"type": "object", "properties": {"cmd": {"type": "string"}, "timeout": {"type": "integer", "default": 30}}, "required": ["cmd"]}),
+            "think": Tool(name="think", description="Record reasoning step", 
+                         inputSchema={"type": "object", "properties": {"thought": {"type": "string"}}, "required": ["thought"]}),
+            "plan_task": Tool(name="plan_task", description="Create execution plan", 
+                             inputSchema={"type": "object", "properties": {"goal": {"type": "string"}, "steps": {"type": "array", "items": {"type": "string"}}}, "required": ["goal", "steps"]}),
+        }
+
+    async def execute(self, name: str, args: Dict[str, Any]) -> ToolResult:
+        method = f"_tool_{name}"
+        if hasattr(self, method):
+            try:
+                return await getattr(self, method)(args)
+            except Exception as e:
+                logger.exception(f"Tool {name} failed: {e}")
+                return ToolResult(content=[{"type": "text", "text": f"Error: {str(e)}"}], isError=True)
+        return ToolResult(content=[{"type": "text", "text": f"Unknown tool: {name}"}], isError=True)
+
+    # Implementations
+    async def _tool_read_file(self, args):
+        path = self.guard.resolve_path(args.get("path"))
+        return ToolResult(content=[{"type": "text", "text": path.read_text(encoding='utf-8', errors='replace')}])
+
+    async def _tool_write_file(self, args):
+        path = self.guard.resolve_path(args.get("path"))
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(args.get("content"), encoding='utf-8')
+        return ToolResult(content=[{"type": "text", "text": f"Success: {path}"}])
+
+    async def _tool_list_dir(self, args):
+        path = self.guard.resolve_path(args.get("path", "."))
+        entries = [{"name": i.name, "type": "dir" if i.is_dir() else "file"} for i in sorted(path.iterdir())]
+        return ToolResult(content=[{"type": "text", "text": json.dumps(entries, indent=2)}])
+
+    async def _tool_search_files(self, args):
+        path = self.guard.resolve_path(args.get("path", "."))
+        matches = [{"path": str(i.relative_to(self.sandbox_path)), "type": "dir" if i.is_dir() else "file"} 
+                   for i in path.rglob(args.get("pattern"))][:100]
+        return ToolResult(content=[{"type": "text", "text": json.dumps(matches, indent=2)}])
+
+    async def _tool_run_command(self, args):
+        cmd = args.get("cmd")
+        safety, reason = classify_command(cmd)
+        if safety == "dangerous": raise PermissionError(f"Blocked: {reason}")
+        res = subprocess.run(cmd, shell=True, cwd=str(self.sandbox_path), capture_output=True, text=True, timeout=args.get("timeout", 30))
+        out = res.stdout + (f"\n[stderr]: {res.stderr}" if res.stderr else "")
+        return ToolResult(content=[{"type": "text", "text": out or "(no output)"}])
+
+    async def _tool_web_search(self, args):
+        from duckduckgo_search import DDGS
+        with DDGS() as ddgs:
+            results = list(ddgs.text(args.get("query"), max_results=args.get("num_results", 5)))
+        formatted = [f"**{r.get('title')}**\n{r.get('href')}\n{r.get('body')}" for r in results]
+        return ToolResult(content=[{"type": "text", "text": "\n\n".join(formatted)}])
+
+    async def _tool_screenshot(self, args):
+        from playwright.async_api import async_playwright
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            page = await browser.new_page()
+            await page.goto(args.get("url"), timeout=30000)
+            img = await page.screenshot(full_page=args.get("full_page", False))
+            await browser.close()
+        return ToolResult(content=[{"type": "image", "data": base64.b64encode(img).decode("utf-8"), "mimeType": "image/png"}])
+
+    async def _tool_python_executor(self, args):
+        code = args.get("code")
+        for b in ["os", "sys", "subprocess"]:
+            if f"import {b}" in code or f"from {b}" in code: raise PermissionError(f"Blocked: {b}")
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+            f.write(code)
+            path = f.name
+        try:
+            res = subprocess.run(['python', path], capture_output=True, text=True, timeout=args.get("timeout", 10))
+            return ToolResult(content=[{"type": "text", "text": res.stdout + res.stderr or "(no output)"}])
+        finally: os.unlink(path)
+
+    async def _tool_database_query(self, args):
+        return ToolResult(content=[{"type": "text", "text": "Database query not available in local daemon mode."}], isError=True)
+
+    async def _tool_think(self, args):
+        return ToolResult(content=[{"type": "text", "text": f"Thought recorded: {args.get('thought')}"}])
+
+    async def _tool_plan_task(self, args):
+        plan = f"Plan: {args.get('goal')}\n" + "\n".join([f"- {s}" for s in args.get("steps", [])])
+        return ToolResult(content=[{"type": "text", "text": plan}])
 
 # ========== Daemon State ==========
 
@@ -346,273 +251,99 @@ class DaemonState:
     sandbox_path: Optional[str] = None
     approval_mode: ApprovalMode = ApprovalMode.REQUIRE_APPROVAL
     pending_calls: Dict[str, ToolCallPending] = field(default_factory=dict)
-    tools: Optional[AgentTools] = None
-
+    mcp: Optional[BeyondCloudLocalMCP] = None
 
 state = DaemonState()
 
-
 # ========== FastAPI App ==========
 
-app = FastAPI(
-    title="BeyondCloud Local Agent",
-    version=VERSION,
-    description="Local agent daemon for file operations and command execution"
-)
+app = FastAPI(title="BeyondCloud Local Agent (MCP)", version=VERSION)
 
-# CORS - allow browser access from common frontend ports
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",  # Vite dev
-        "http://localhost:3000",  # Common
-        "http://localhost:4173",  # Vite preview
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:4173",
-    ],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-
 @app.get("/")
 def root():
-    return {
-        "name": "BeyondCloud Local Agent",
-        "version": VERSION,
-        "status": "running",
-        "sandbox_active": state.tools is not None,
-        "sandbox_path": state.sandbox_path
-    }
-
+    return {"name": "BeyondCloud Local Agent", "version": VERSION, "status": "running", "sandbox": state.sandbox_path}
 
 @app.get("/api/agent/status")
 def get_status():
-    return {
-        "sandbox_path": state.sandbox_path,
-        "sandbox_active": state.tools is not None,
-        "approval_mode": state.approval_mode.value,
-        "pending_approvals": len(state.pending_calls),
-    }
-
+    return {"sandbox_path": state.sandbox_path, "sandbox_active": state.mcp is not None, "approval_mode": state.approval_mode.value, "pending_count": len(state.pending_calls)}
 
 @app.post("/api/agent/set-sandbox")
 def set_sandbox(request: SetSandboxRequest):
     try:
-        tools = AgentTools(request.path)
-        state.sandbox_path = str(tools.sandbox_path)
-        state.tools = tools
-        return {
-            "success": True,
-            "sandbox_path": state.sandbox_path,
-            "message": f"Working directory set to: {state.sandbox_path}"
-        }
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
+        state.mcp = BeyondCloudLocalMCP(request.path)
+        state.sandbox_path = str(state.mcp.sandbox_path)
+        return {"success": True, "path": state.sandbox_path}
+    except Exception as e: raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/api/agent/set-mode")
 def set_mode(request: SetModeRequest):
     state.approval_mode = request.mode
-    return {
-        "success": True,
-        "mode": request.mode.value,
-        "message": f"Approval mode set to: {request.mode.value}"
-    }
+    return {"success": True, "mode": request.mode.value}
 
+# --- MCP Compatible Endpoints ---
 
-@app.get("/api/agent/tools")
-def get_tools():
-    return {"tools": TOOL_SCHEMAS}
+@app.get("/api/mcp/tools")
+def list_tools():
+    if not state.mcp: raise HTTPException(status_code=400, detail="Sandbox not set")
+    return {"tools": [asdict(t) for t in state.mcp._tools.values()]}
 
+@app.post("/api/mcp/tools/call")
+async def call_tool(request: ToolCallRequest):
+    if not state.mcp: raise HTTPException(status_code=400, detail="Sandbox not set")
+    
+    safety = "moderate"
+    if request.name == "run_command":
+        safety, _ = classify_command(request.arguments.get("cmd", ""))
+    
+    if not request.approved and state.approval_mode == ApprovalMode.REQUIRE_APPROVAL:
+        if request.name not in ["think", "plan_task"]:
+            call_id = str(uuid.uuid4())
+            state.pending_calls[call_id] = ToolCallPending(id=call_id, name=request.name, arguments=request.arguments, safety_level=safety)
+            return {"status": "pending_approval", "call_id": call_id, "tool_name": request.name, "safety_level": safety}
 
-@app.post("/api/agent/execute")
-def execute_tool(request: ExecuteToolRequest):
-    import time
-    start_time = time.time()
-    trace_id = str(uuid.uuid4())[:8]
-    
-    if state.tools is None:
-        print(f"[Trace] ❌ agent.execute tool={request.tool_name} error='Working directory not set' trace={trace_id}")
-        raise HTTPException(status_code=400, detail="Working directory not set")
-    
-    tool_name = request.tool_name
-    args = request.args
-    
-    # Determine if approval needed
-    needs_approval = True
-    safety_level = "moderate"
-    
-    if tool_name == "run_command":
-        safety_level, _ = classify_command(args.get("cmd", ""))
-    
-    if state.approval_mode == ApprovalMode.TRUST_MODE:
-        if tool_name != "run_command":
-            needs_approval = False
-    
-    # If not approved, queue for approval
-    if needs_approval and not request.approved:
-        call_id = str(uuid.uuid4())
-        pending = ToolCallPending(
-            id=call_id,
-            tool_name=tool_name,
-            args=args,
-            safety_level=safety_level
-        )
-        state.pending_calls[call_id] = pending
-        
-        duration_ms = (time.time() - start_time) * 1000
-        print(f"[Trace] ⏳ agent.execute tool={tool_name} status=pending_approval safety={safety_level} ({duration_ms:.2f}ms) trace={trace_id}")
-        
-        return {
-            "status": "pending_approval",
-            "call_id": call_id,
-            "tool_name": tool_name,
-            "args": args,
-            "safety_level": safety_level,
-            "message": "Tool call requires approval"
-        }
-    
-    # Execute the tool
-    tools = state.tools
-    result = None
-    error = None
-    
-    try:
-        if tool_name == "read_file":
-            result = tools.read_file(args.get("path", ""))
-        elif tool_name == "write_file":
-            result = tools.write_file(args.get("path", ""), args.get("content", ""))
-        elif tool_name == "list_dir":
-            result = tools.list_dir(args.get("path", "."))
-        elif tool_name == "search_files":
-            result = tools.search_files(args.get("pattern", "*"), args.get("path", "."))
-        elif tool_name == "run_command":
-            result = tools.run_command(args.get("cmd", ""))
-        else:
-            raise HTTPException(status_code=400, detail=f"Unknown tool: {tool_name}")
-        
-        error = result.get("error") if result else None
-    except Exception as e:
-        error = str(e)
-        result = {"error": error}
-    
-    duration_ms = (time.time() - start_time) * 1000
-    status = "error" if error else "success"
-    status_icon = "❌" if error else "✅"
-    print(f"[Trace] {status_icon} agent.execute tool={tool_name} status={status} ({duration_ms:.2f}ms) trace={trace_id}")
-    
-    return {
-        "status": status,
-        "tool_name": tool_name,
-        "args": args,
-        "result": result,
-        "error": error
-    }
+    result = await state.mcp.execute(request.name, request.arguments)
+    return {"status": "error" if result.isError else "success", "content": result.content}
 
+@app.get("/api/agent/pending")
+def get_pending():
+    return {"pending": list(state.pending_calls.values())}
 
 @app.post("/api/agent/approve/{call_id}")
-def approve_call(call_id: str):
-    if call_id not in state.pending_calls:
-        raise HTTPException(status_code=404, detail="Pending call not found")
-    
+async def approve_call(call_id: str):
+    if call_id not in state.pending_calls: raise HTTPException(status_code=404, detail="Not found")
     pending = state.pending_calls.pop(call_id)
-    return execute_tool(ExecuteToolRequest(
-        tool_name=pending.tool_name,
-        args=pending.args,
-        approved=True
-    ))
-
+    return await call_tool(ToolCallRequest(name=pending.name, arguments=pending.arguments, approved=True))
 
 @app.post("/api/agent/reject/{call_id}")
 def reject_call(call_id: str):
-    if call_id not in state.pending_calls:
-        raise HTTPException(status_code=404, detail="Pending call not found")
-    
-    pending = state.pending_calls.pop(call_id)
-    return {
-        "status": "rejected",
-        "tool_name": pending.tool_name,
-        "message": "Tool call rejected by user"
-    }
+    if call_id not in state.pending_calls: raise HTTPException(status_code=404, detail="Not found")
+    state.pending_calls.pop(call_id)
+    return {"status": "rejected"}
 
-
-@app.get("/api/agent/pending")
-def get_pending_calls():
-    return {
-        "pending": [
-            {
-                "id": p.id,
-                "tool_name": p.tool_name,
-                "args": p.args,
-                "safety_level": p.safety_level,
-            }
-            for p in state.pending_calls.values()
-        ]
-    }
-
-
-# ========== CLI Entry Point ==========
+# ========== CLI Entry ==========
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="BeyondCloud Local Agent Daemon",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  python agent_daemon.py                    # Start on default port 8002
-  python agent_daemon.py --port 9000        # Start on custom port
-  python agent_daemon.py --sandbox ~/code   # Start with pre-set working directory
-        """
-    )
-    parser.add_argument(
-        "--port", "-p",
-        type=int,
-        default=DEFAULT_PORT,
-        help=f"Port to listen on (default: {DEFAULT_PORT})"
-    )
-    parser.add_argument(
-        "--sandbox", "-s",
-        type=str,
-        help="Pre-set working directory"
-    )
-    parser.add_argument(
-        "--version", "-v",
-        action="version",
-        version=f"BeyondCloud Local Agent v{VERSION}"
-    )
-    
+    parser = argparse.ArgumentParser(description="BeyondCloud Local Agent")
+    parser.add_argument("--port", "-p", type=int, default=DEFAULT_PORT)
+    parser.add_argument("--sandbox", "-s", type=str)
     args = parser.parse_args()
-    
-    # Pre-set sandbox if provided
+
     if args.sandbox:
         try:
-            tools = AgentTools(args.sandbox)
-            state.sandbox_path = str(tools.sandbox_path)
-            state.tools = tools
-            print(f"Working directory: {state.sandbox_path}")
-        except ValueError as e:
-            print(f"Error: {e}")
-            sys.exit(1)
-    
-    print(f"""
-╔══════════════════════════════════════════════════════════════╗
-║           BeyondCloud Local Agent v{VERSION}                   ║
-╠══════════════════════════════════════════════════════════════╣
-║  Running on: http://localhost:{args.port}                        ║
-║  Status:     http://localhost:{args.port}/api/agent/status       ║
-╚══════════════════════════════════════════════════════════════╝
-    """)
-    
-    if not state.sandbox_path:
-        print("⚠️  No working directory set. Configure in the web UI.")
-    
-    print("Press Ctrl+C to stop.\n")
-    
-    uvicorn.run(app, host="127.0.0.1", port=args.port, log_level="info")
+            state.mcp = BeyondCloudLocalMCP(args.sandbox)
+            state.sandbox_path = str(state.mcp.sandbox_path)
+        except Exception as e: print(f"Error: {e}"); sys.exit(1)
 
+    print(f"Starting BeyondCloud Proxy on port {args.port}...")
+    uvicorn.run(app, host="127.0.0.1", port=args.port)
 
 if __name__ == "__main__":
     main()
