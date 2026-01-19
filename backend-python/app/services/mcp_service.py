@@ -51,12 +51,102 @@ class MCPService:
     - Tool discovery (list tools from all servers)
     - Tool execution (call tools on specific servers)
     - OpenAI format conversion (for LLM function calling)
+    - RBAC: Permission checks for user access
     """
+    
+    # RBAC: Role-based MCP access
+    ROLE_MCP_PERMISSIONS = {
+        "user": [],  # No MCP access
+        "rag_user": [],  # No MCP access
+        "agent_user": ["beyondcloud-tools"],  # Built-in only
+        "agent_developer": ["beyondcloud-tools", "*custom*"],  # Built-in + custom
+        "admin": ["*"],  # All servers
+        "owner": ["*"],  # All servers
+    }
+    
+    # Built-in MCP server config
+    BUILTIN_SERVER = {
+        "id": "beyondcloud-tools",
+        "name": "beyondcloud-tools",
+        "transport": "builtin",
+        "is_builtin": True,
+    }
     
     def __init__(self):
         self._servers: Dict[str, MCPServerConfig] = {}
         self._connections: Dict[str, Any] = {}  # Server ID -> active session
         self._tools_cache: Dict[str, List[MCPTool]] = {}  # Server ID -> tools
+        self._builtin_server = None
+    
+    async def register_builtin_server(self):
+        """Register the built-in BeyondCloud tools MCP server"""
+        from mcp_servers.beyondcloud_tools import BeyondCloudToolsServer
+        
+        self._builtin_server = BeyondCloudToolsServer()
+        
+        # Register it in our servers list
+        config = MCPServerConfig(
+            id="beyondcloud-tools",
+            name="BeyondCloud Tools",
+            transport="builtin",
+            is_active=True
+        )
+        self._servers["beyondcloud-tools"] = config
+        
+        # Get tools from built-in server
+        tools_response = await self._builtin_server._handle_tools_list()
+        self._tools_cache["beyondcloud-tools"] = [
+            MCPTool(
+                server_id="beyondcloud-tools",
+                server_name="BeyondCloud Tools",
+                name=t["name"],
+                description=t["description"],
+                input_schema=t["inputSchema"]
+            )
+            for t in tools_response.get("tools", [])
+        ]
+        
+        return True
+    
+    def check_mcp_permission(self, user_role: str, server_id: str) -> bool:
+        """
+        Check if a user role has permission to use an MCP server.
+        
+        Args:
+            user_role: User's role (user, rag_user, agent_user, admin, etc.)
+            server_id: MCP server ID to check
+            
+        Returns:
+            True if allowed, False if blocked
+        """
+        allowed = self.ROLE_MCP_PERMISSIONS.get(user_role, [])
+        
+        if "*" in allowed:
+            return True  # Admin/owner can access all
+        
+        if server_id in allowed:
+            return True  # Explicitly allowed server
+        
+        if "*custom*" in allowed and server_id not in ["beyondcloud-tools"]:
+            return True  # Can access custom servers
+        
+        return False
+    
+    def get_allowed_servers(self, user_role: str) -> List[str]:
+        """Get list of server IDs a user role can access"""
+        allowed_patterns = self.ROLE_MCP_PERMISSIONS.get(user_role, [])
+        
+        if "*" in allowed_patterns:
+            return list(self._servers.keys())
+        
+        result = []
+        for server_id in self._servers.keys():
+            if server_id in allowed_patterns:
+                result.append(server_id)
+            elif "*custom*" in allowed_patterns and server_id != "beyondcloud-tools":
+                result.append(server_id)
+        
+        return result
     
     async def add_server(self, config: MCPServerConfig) -> str:
         """
@@ -161,13 +251,28 @@ class MCPService:
             
             config = self._servers[server_id]
             
-            # For now, use stdio transport simulation
+            # Handle built-in server
+            if config.transport == "builtin" and self._builtin_server:
+                try:
+                    result = await self._builtin_server._execute_tool(tool_name, args)
+                    span.set_status("OK")
+                    return {
+                        "status": "success" if not result.isError else "error",
+                        "content": result.content,
+                        "tool": tool_name,
+                    }
+                except Exception as e:
+                    span.set_status("ERROR", str(e))
+                    return {"error": str(e)}
+            
+            # For external servers, use stdio transport
             # TODO: Implement real MCP SDK integration
             try:
                 result = await self._execute_tool_stdio(config, tool_name, args)
                 span.set_status("OK")
                 return result
             except Exception as e:
+
                 span.set_status("ERROR", str(e))
                 return {"error": str(e)}
     

@@ -42,6 +42,14 @@ async def lifespan(app: FastAPI):
         add_db_handler(min_level=logging.INFO)
         logger.info("Database logging enabled")
     
+    # Register built-in MCP server
+    from app.services.mcp_service import mcp_service
+    try:
+        await mcp_service.register_builtin_server()
+        logger.info("BeyondCloud MCP server registered")
+    except Exception as e:
+        logger.warning(f"Failed to register builtin MCP: {e}")
+    
     logger.info(f"Server starting on port {settings.port}")
     print(f"""
 ╔═══════════════════════════════════════════════════════════╗
