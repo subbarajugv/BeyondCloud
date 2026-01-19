@@ -6,42 +6,43 @@ A multi-user LLM interface with dual backends, RAG capabilities, and agentic too
 
 ```
 llamacpp-auth-webui/
-├── backend-nodejs/       # Auth, Conversations, and Global Settings
-├── backend-python/       # RAG System, Agent Logic, and Analytics
-├── frontend/             # Svelte 5 WebUI with authenticated routes
-├── docs/                 # Documentation & API Contracts
-├── agent-daemon/         # Background agent processes
-└── public/               # Static assets
+├── backend-nodejs/       # Auth, Conversations, Settings
+├── backend-python/       # RAG, Agents, MCP, Analytics
+├── frontend/             # Svelte 5 WebUI
+└── docs/                 # API Contracts & Documentation
 ```
 
 ## 🚀 Current Status
 
-| Component | Status | Technology |
-|-----------|--------|------------|
-| **Core Auth** | ✅ Done | Node.js + Express + JWT |
-| **Conversations** | ✅ Done | Node.js + PostgreSQL |
-| **RAG Ingestion** | ✅ Done | Python + FastAPI + pgvector |
-| **Vector Search** | ✅ Done | Python + FastAPI |
-| **Agent Tools** | 🚧 Beta | Python + MCP |
-| **Analytics** | ✅ Done | Python + OpenTelemetry |
+| Component | Status | Port |
+|-----------|--------|------|
+| **Node.js Backend** | ✅ Active | 3000 |
+| **Python Backend** | ✅ Active | 8001 |
+| **Frontend** | ✅ Active | 5173 (dev) |
+
+## ✅ Implemented Features
+
+- **Authentication**: JWT + refresh tokens + RBAC
+- **Conversations**: Full CRUD with branching support
+- **RAG System**: Ingest, retrieve, query with pgvector
+- **Collections**: Hierarchical folder organization for RAG sources
+- **Storage**: Local (dev) or S3-compatible (prod)
+- **Agent Tools**: Sandbox execution with approval flow
+- **MCP Integration**: External tool servers
+- **Usage Analytics**: LLM/RAG/Agent metrics tracking
+- **RAG Settings UI**: Configurable chunking, reranking, context assembly
 
 ## 📚 Key Documentation
 
-1. **[API Overview](docs/API_OVERVIEW.md)**: Service mapping and ports (3000, 8000, 8001).
-2. **[Core Contract](docs/CONTRACT.md)**: Protocol standards and error formats.
-3. **[RAG Logic](docs/RAG_CONTRACT.md)**: Ingestion and retrieval specifications.
-4. **[Database Schema](docs/DATABASE_SCHEMA.md)**: ER Diagram and security analysis.
-5. **[Implementation Phases](docs/PHASES.md)**: Roadmap and completion status.
-
-## ✨ Features
-
-- **Authentication**: JWT-based auth with refresh token rotation and RBAC.
-- **RAG System**: Ingest documents (PDF, Text) and query them with semantic search.
-- **Agentic Chat**: Support for tool calling and Model Context Protocol (MCP).
-- **Dual Backend**: Optimized performance with Node.js for I/O and Python for AI logic.
-- **Multi-User**: Strict data isolation and role-based access control.
+| Document | Contents |
+|----------|----------|
+| [API Overview](docs/API_OVERVIEW.md) | All routes and endpoints |
+| [Core Contract](docs/CONTRACT.md) | Protocol and error formats |
+| [RAG Contract](docs/RAG_CONTRACT.md) | Ingestion and retrieval |
+| [Database Schema](docs/DATABASE_SCHEMA.md) | ER diagram |
+| [RBAC Contract](docs/RBAC_CONTRACT.md) | Access control |
 
 ---
 
-**Last Updated:** 2026-01-19  
-**Status:** 🚀 Active Development (Phase 4/5)
+**Last Updated:** 2026-01-20  
+**Status:** 🚀 Active Development

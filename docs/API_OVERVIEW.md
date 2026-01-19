@@ -1,53 +1,76 @@
 # BeyondCloud API Overview
 
-This document provides a high-level map of the BeyondCloud service architecture, ports, and base URLs. For detailed data schemas and protocol guarantees, refer to the specific contract files.
+This document provides a high-level map of the BeyondCloud service architecture, ports, and base URLs.
 
 ## 📡 Backend Architecture
 
-| Service | Responsibility | Port | Base URL | Detailed Contract |
-|---------|----------------|------|----------|-------------------|
-| **Core (Node.js)** | Auth, Conversations, Settings | 3000 | `/api` | [CONTRACT.md](CONTRACT.md) |
-| **Agent Engine (Python)** | Agents, MCP, Sandbox | 8000 | `/api` | [AGENT_CONTRACT.md](AGENT_CONTRACT.md) |
-| **RAG Engine (Python)** | Vector Search, Ingestion | 8001 | `/rag` | [RAG_CONTRACT.md](RAG_CONTRACT.md) |
-| **Analytics (Python)** | Usage Metrics, Tracing | 8000 | `/usage` | [CONTRACT.md](CONTRACT.md) |
+| Service | Responsibility | Port | Base URL |
+|---------|----------------|------|----------|
+| **Node.js Backend** | Auth, Conversations, Settings | 3000 | `/api` |
+| **Python Backend** | RAG, Agents, MCP, Analytics | 8001 | `/api` |
+
+> **Note**: The Python backend hosts all AI-related services in a single FastAPI application.
 
 ---
 
-## 🚦 Protocol Standards
+## Python Backend Routes (/api)
 
-BeyondCloud adheres to a strict protocol standard for all services:
+### Core
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/health` | GET | Health check |
+| `/models` | GET | List available models |
 
-- **Auth**: All protected endpoints require a Bearer JWT in the `Authorization` header.
-- **Format**: All requests and responses are JSON (except SSE streams).
-- **Errors**: All services return a standardized error format (see [CONTRACT.md](CONTRACT.md#4-failures)).
+### RAG (Knowledge Base)
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/rag/sources` | GET | List sources |
+| `/rag/ingest` | POST | Ingest text |
+| `/rag/ingest/file` | POST | Ingest file |
+| `/rag/retrieve` | POST | Vector search |
+| `/rag/query` | POST | RAG + generation |
+| `/rag/sources/:id` | DELETE | Delete source |
+| `/rag/sources/:id/visibility` | PUT | Update visibility |
+| `/rag/settings` | GET/PUT | RAG settings |
+| `/rag/collections` | GET/POST | Manage collections |
+
+### Agent
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/agent/set-sandbox` | POST | Configure sandbox |
+| `/agent/set-mode` | POST | Set agent mode |
+| `/agent/execute` | POST | Execute tool |
+| `/agent/approve/:id` | POST | Approve action |
+| `/agent/status` | GET | Get agent status |
+
+### MCP (Model Context Protocol)
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/mcp/servers` | GET/POST/DELETE | Manage MCP servers |
+| `/mcp/tools` | GET | List available tools |
+| `/mcp/tools/call` | POST | Execute MCP tool |
+
+### Usage Analytics
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/usage/analytics` | GET | Get usage stats |
 
 ---
 
-## 🔗 Deep Links to Specifications
+## 🔗 Contract Documents
 
-### [Core API (Node.js)](CONTRACT.md)
-- User Authentication (Login, Register, Logout)
-- Conversation & Message Management
-- Global Settings
-
-### [Agent System (Python)](AGENT_CONTRACT.md)
-- Intent Parsing
-- Tool Execution & Approval Flow
-- MCP (Model Context Protocol) Integration
-
-### [Knowledge Base / RAG (Python)](RAG_CONTRACT.md)
-- Document Ingestion (Files/Text)
-- Prompt Grounding & Citations
-- Vector Search
-
-### [Access Control (RBAC)](RBAC_CONTRACT.md)
-- Role Definitions (`admin`, `user`, `agent_developer`)
-- Permission Matrix for all resources
+| Document | Contents |
+|----------|----------|
+| [CONTRACT.md](CONTRACT.md) | Core API protocol, auth, errors |
+| [AGENT_CONTRACT.md](AGENT_CONTRACT.md) | Agent tool execution flow |
+| [RAG_CONTRACT.md](RAG_CONTRACT.md) | RAG pipeline contracts |
+| [RBAC_CONTRACT.md](RBAC_CONTRACT.md) | Access control matrix |
+| [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md) | ER diagram and tables |
 
 ---
 
 ## ⚠️ Cross-Service Guarantees
 
-1. **User Isolation**: No user can access another user's conversations or private RAG sources.
-2. **Atomic Ingestion**: Document ingestion either completes fully (with embeddings) or fails cleanly.
-3. **Approval Flow**: Dangerous agent actions (file writes, code execution) MUST be approved by the user via the defined protocol.
+1. **User Isolation**: No user can access another user's data
+2. **Atomic Operations**: All database changes are transactional
+3. **Approval Flow**: Dangerous agent actions require user approval
