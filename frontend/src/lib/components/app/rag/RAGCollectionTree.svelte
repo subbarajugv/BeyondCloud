@@ -240,9 +240,10 @@
 
 		<!-- Children -->
 		{#if isExpanded && hasChildren}
-			{#each collection.children as child (child.id)}
+			{#each collection.children ?? [] as child (child.id)}
 				{@render collectionNode(child, depth + 1)}
 			{/each}
 		{/if}
+
 	</div>
 {/snippet}
