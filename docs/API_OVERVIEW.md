@@ -1,76 +1,156 @@
 # BeyondCloud API Overview
 
-This document provides a high-level map of the BeyondCloud service architecture, ports, and base URLs.
+Complete reference for all API endpoints.
 
-## 📡 Backend Architecture
+## 📡 Architecture
 
-| Service | Responsibility | Port | Base URL |
-|---------|----------------|------|----------|
-| **Node.js Backend** | Auth, Conversations, Settings | 3000 | `/api` |
-| **Python Backend** | RAG, Agents, MCP, Analytics | 8001 | `/api` |
-
-> **Note**: The Python backend hosts all AI-related services in a single FastAPI application.
+| Service | Port | Responsibility |
+|---------|------|----------------|
+| **Node.js** | 3000 | Auth, Conversations, Settings |
+| **Python** | 8001 | RAG, Agents, MCP, Analytics |
 
 ---
 
-## Python Backend Routes (/api)
+## Node.js Backend (Port 3000)
 
-### Core
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/health` | GET | Health check |
-| `/models` | GET | List available models |
+### Auth
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/auth/register` | Register new user |
+| POST | `/api/auth/login` | Login, get JWT |
+| POST | `/api/auth/refresh` | Refresh token |
+| GET | `/api/auth/me` | Get current user |
 
-### RAG (Knowledge Base)
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/rag/sources` | GET | List sources |
-| `/rag/ingest` | POST | Ingest text |
-| `/rag/ingest/file` | POST | Ingest file |
-| `/rag/retrieve` | POST | Vector search |
-| `/rag/query` | POST | RAG + generation |
-| `/rag/sources/:id` | DELETE | Delete source |
-| `/rag/sources/:id/visibility` | PUT | Update visibility |
-| `/rag/settings` | GET/PUT | RAG settings |
-| `/rag/collections` | GET/POST | Manage collections |
+### Conversations
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/conversations` | List conversations |
+| POST | `/api/conversations` | Create conversation |
+| GET | `/api/conversations/:id` | Get conversation |
+| DELETE | `/api/conversations/:id` | Delete conversation |
+
+### Messages
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/conversations/:id/messages` | List messages |
+| POST | `/api/conversations/:id/messages` | Create message |
+
+### Chat
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/chat/completions` | LLM completion |
+| POST | `/api/chat/completions/stream` | Streaming completion |
+
+---
+
+## Python Backend (Port 8001)
+
+### Health
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/health` | Health check |
+| GET | `/models` | List LLM models |
+
+### RAG - Sources
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/rag/sources` | List sources |
+| POST | `/rag/ingest` | Ingest text |
+| POST | `/rag/ingest/file` | Ingest file |
+| DELETE | `/rag/sources/:id` | Delete source |
+| PUT | `/rag/sources/:id/visibility` | Update visibility |
+| GET | `/rag/sources/:id/download` | Download file |
+
+### RAG - Query
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/rag/retrieve` | Vector search |
+| POST | `/rag/query` | RAG + generation |
+
+### RAG - Collections
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/rag/collections` | List collections |
+| POST | `/rag/collections` | Create collection |
+| GET | `/rag/collections/:id` | Get collection |
+| PUT | `/rag/collections/:id` | Update collection |
+| DELETE | `/rag/collections/:id` | Delete collection |
+| POST | `/rag/collections/:id/move` | Move items |
+
+### RAG - Settings
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/rag/settings` | Get settings |
+| PUT | `/rag/settings` | Update settings |
 
 ### Agent
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/agent/set-sandbox` | POST | Configure sandbox |
-| `/agent/set-mode` | POST | Set agent mode |
-| `/agent/execute` | POST | Execute tool |
-| `/agent/approve/:id` | POST | Approve action |
-| `/agent/status` | GET | Get agent status |
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/agent/set-sandbox` | Configure sandbox path |
+| POST | `/api/agent/set-mode` | Set approval mode |
+| GET | `/api/agent/status` | Get agent status |
+| GET | `/api/agent/tools` | List available tools |
+| POST | `/api/agent/execute` | Execute tool |
+| POST | `/api/agent/approve/:id` | Approve pending call |
+| POST | `/api/agent/reject/:id` | Reject pending call |
+| GET | `/api/agent/pending` | List pending calls |
 
 ### MCP (Model Context Protocol)
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/mcp/servers` | GET/POST/DELETE | Manage MCP servers |
-| `/mcp/tools` | GET | List available tools |
-| `/mcp/tools/call` | POST | Execute MCP tool |
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/mcp/servers` | List MCP servers |
+| POST | `/api/mcp/servers` | Add MCP server |
+| DELETE | `/api/mcp/servers/:id` | Remove MCP server |
+| GET | `/api/mcp/tools` | List MCP tools |
+| POST | `/api/mcp/tools/call` | Execute MCP tool |
+| GET | `/api/mcp/tools/openai-format` | Get tools in OpenAI format |
+
+### LLM Providers
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/providers` | List providers |
+| POST | `/api/providers/test` | Test provider |
+| GET | `/api/providers/models` | List models |
 
 ### Usage Analytics
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/usage/analytics` | GET | Get usage stats |
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/usage/stats` | Get usage statistics |
+| GET | `/api/usage/daily` | Get daily breakdown |
 
 ---
 
-## 🔗 Contract Documents
+## MCP Tools (Built-in)
 
-| Document | Contents |
-|----------|----------|
-| [CONTRACT.md](CONTRACT.md) | Core API protocol, auth, errors |
-| [AGENT_CONTRACT.md](AGENT_CONTRACT.md) | Agent tool execution flow |
-| [RAG_CONTRACT.md](RAG_CONTRACT.md) | RAG pipeline contracts |
-| [RBAC_CONTRACT.md](RBAC_CONTRACT.md) | Access control matrix |
-| [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md) | ER diagram and tables |
+11 tools available via `/api/mcp/tools`:
+
+| Tool | Description |
+|------|-------------|
+| `read_file` | Read file contents |
+| `write_file` | Write to file |
+| `list_dir` | List directory |
+| `search_files` | Search by pattern |
+| `run_command` | Execute shell command |
+| `python_executor` | Run Python code |
+| `web_search` | DuckDuckGo search |
+| `screenshot` | Capture webpage |
+| `database_query` | Read-only SQL |
+| `think` | Record reasoning |
+| `plan_task` | Create execution plan |
 
 ---
 
-## ⚠️ Cross-Service Guarantees
+## RBAC
 
-1. **User Isolation**: No user can access another user's data
-2. **Atomic Operations**: All database changes are transactional
-3. **Approval Flow**: Dangerous agent actions require user approval
+| Role | RAG | Agent | MCP | Admin |
+|------|-----|-------|-----|-------|
+| `user` | ❌ | ❌ | ❌ | ❌ |
+| `rag_user` | ✅ | ❌ | ❌ | ❌ |
+| `agent_user` | ✅ | ✅ | Built-in | ❌ |
+| `admin` | ✅ | ✅ | ✅ All | ✅ |
+
+---
+
+## Related Docs- [CONTRACT.md](CONTRACT.md) - Core API protocol
+- [RAG_CONTRACT.md](RAG_CONTRACT.md) - RAG pipeline
+- [AGENT_CONTRACT.md](AGENT_CONTRACT.md) - Agent flow
