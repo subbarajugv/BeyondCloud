@@ -1,18 +1,16 @@
 <script lang="ts">
 	import { ragStore } from '$lib/stores/ragStore.svelte';
-	import { Database, Plus, RefreshCw, ChevronDown, ChevronRight, Settings } from '@lucide/svelte';
+	import { Database, Plus, RefreshCw, ChevronDown, ChevronRight } from '@lucide/svelte';
 	import { Button } from '$lib/components/ui/button';
 	import RAGSourceList from './RAGSourceList.svelte';
 	import RAGUploadDialog from './RAGUploadDialog.svelte';
 	import RAGCollectionTree from './RAGCollectionTree.svelte';
-	import RAGSettings from './RAGSettings.svelte';
 
 	let isExpanded = $state(true);
 	let uploadDialogOpen = $state(false);
-	let activeTab = $state<'folders' | 'documents' | 'settings'>('folders');
+	let showTree = $state(true);
 
 	const sourceCount = $derived(ragStore.sources.length);
-	const collectionCount = $derived(ragStore.collections.length);
 	const currentCollection = $derived(
 		ragStore.currentCollectionId 
 			? ragStore.getCollection(ragStore.currentCollectionId)
@@ -70,19 +68,10 @@
 				>
 					<RefreshCw class="h-3.5 w-3.5" />
 				</Button>
-				<Button
-					variant="ghost"
-					size="icon"
-					class="h-8 w-8"
-					onclick={() => (activeTab = 'settings')}
-					title="RAG Settings"
-				>
-					<Settings class="h-3.5 w-3.5" />
-				</Button>
 			</div>
 
 			<!-- Current folder breadcrumb -->
-			{#if currentCollection && activeTab !== 'settings'}
+			{#if currentCollection}
 				<div class="mb-2 flex items-center gap-1 rounded bg-muted/50 px-2 py-1 text-xs">
 					<span class="text-muted-foreground">Folder:</span>
 					<span class="font-medium">{currentCollection.name}</span>
@@ -100,35 +89,26 @@
 			<div class="mb-2 flex gap-1 border-b border-border">
 				<button
 					type="button"
-					class="flex-1 border-b-2 px-2 py-1 text-xs transition-colors {activeTab === 'folders' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}"
-					onclick={() => (activeTab = 'folders')}
+					class="flex-1 border-b-2 px-2 py-1 text-xs transition-colors {showTree ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}"
+					onclick={() => (showTree = true)}
 				>
 					Folders
 				</button>
 				<button
 					type="button"
-					class="flex-1 border-b-2 px-2 py-1 text-xs transition-colors {activeTab === 'documents' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}"
-					onclick={() => (activeTab = 'documents')}
+					class="flex-1 border-b-2 px-2 py-1 text-xs transition-colors {!showTree ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}"
+					onclick={() => (showTree = false)}
 				>
-					Docs
-				</button>
-				<button
-					type="button"
-					class="flex-1 border-b-2 px-2 py-1 text-xs transition-colors {activeTab === 'settings' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}"
-					onclick={() => (activeTab = 'settings')}
-				>
-					Settings
+					Documents
 				</button>
 			</div>
 
 			<!-- Content area -->
-			<div class="max-h-80 overflow-y-auto">
-				{#if activeTab === 'folders'}
-					<RAGCollectionTree onSelect={() => (activeTab = 'documents')} />
-				{:else if activeTab === 'documents'}
+			<div class="max-h-64 overflow-y-auto">
+				{#if showTree}
+					<RAGCollectionTree onSelect={() => (showTree = false)} />
+				{:else}
 					<RAGSourceList />
-				{:else if activeTab === 'settings'}
-					<RAGSettings />
 				{/if}
 			</div>
 		</div>

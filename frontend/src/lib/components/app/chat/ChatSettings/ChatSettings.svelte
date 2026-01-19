@@ -10,7 +10,8 @@
 		ChevronLeft,
 		ChevronRight,
 		Database,
-		Bot
+		Bot,
+		BookOpen
 	} from '@lucide/svelte';
 	import {
 		ChatSettingsFooter,
@@ -18,6 +19,7 @@
 		ChatSettingsFields,
 		SandboxSettings
 	} from '$lib/components/app';
+	import { RAGSettings } from '$lib/components/app/rag';
 	import { ScrollArea } from '$lib/components/ui/scroll-area';
 	import { config, updateMultipleConfig } from '$lib/stores/settings.svelte';
 	import { setMode } from 'mode-watcher';
@@ -270,6 +272,11 @@
 			title: 'Agent',
 			icon: Bot,
 			fields: []
+		},
+		{
+			title: 'RAG',
+			icon: BookOpen,
+			fields: []
 		}
 		// TODO: Experimental features section will be implemented after initial release
 		// This includes Python interpreter (Pyodide integration) and other experimental features
@@ -495,6 +502,8 @@
 				{:else}
 					{#if currentSection.title === 'Agent'}
 						<SandboxSettings />
+					{:else if currentSection.title === 'RAG'}
+						<RAGSettings />
 					{:else}
 						<div class="space-y-6">
 							<ChatSettingsFields
