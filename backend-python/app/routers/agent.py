@@ -13,6 +13,10 @@ from enum import Enum
 from app.services.agent_tools import AgentTools, ToolResponse, ToolResult, TOOL_SCHEMAS
 from app.tracing import create_span, tracer
 from app.middleware.rbac import require_min_role
+from app.database import get_db
+from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import Depends
+from app.services.usage_service import usage_service
 
 
 # RBAC: All Agent endpoints require agent_user role or higher
@@ -164,7 +168,11 @@ async def get_tools(include_mcp: bool = True):
 
 
 @router.post("/execute")
-async def execute_tool(request: ExecuteToolRequest, user_id: str = "default"):
+async def execute_tool(
+    request: ExecuteToolRequest, 
+    user_id: str = "default",
+    db: AsyncSession = Depends(get_db)
+):
     """
     Execute a tool with approval check.
     
@@ -257,6 +265,9 @@ async def execute_tool(request: ExecuteToolRequest, user_id: str = "default"):
             span.set_status("ERROR", f"Unknown tool: {tool_name}")
             raise HTTPException(status_code=400, detail=f"Unknown tool: {tool_name}")
         
+        # Tracking: Increment agent tool call
+        await usage_service.increment(db, user_id, "agent_tool_calls")
+        
         span.set_attribute("result_status", result.status.value)
         if result.error:
             span.set_status("ERROR", result.error)
@@ -273,7 +284,11 @@ async def execute_tool(request: ExecuteToolRequest, user_id: str = "default"):
 
 
 @router.post("/approve/{call_id}")
-async def approve_call(call_id: str, user_id: str = "default"):
+async def approve_call(
+    call_id: str, 
+    user_id: str = "default",
+    db: AsyncSession = Depends(get_db)
+):
     """Approve a pending tool call"""
     session = get_session(user_id)
     
@@ -282,6 +297,9 @@ async def approve_call(call_id: str, user_id: str = "default"):
     
     pending = session.pending_calls.pop(call_id)
     
+    # Tracking: Increment agent approval
+    await usage_service.increment(db, user_id, "agent_approvals")
+    
     # Execute with approved=True
     return await execute_tool(
         ExecuteToolRequest(
@@ -289,12 +307,17 @@ async def approve_call(call_id: str, user_id: str = "default"):
             args=pending.args,
             approved=True
         ),
-        user_id
+        user_id,
+        db
     )
 
 
 @router.post("/reject/{call_id}")
-async def reject_call(call_id: str, user_id: str = "default"):
+async def reject_call(
+    call_id: str, 
+    user_id: str = "default",
+    db: AsyncSession = Depends(get_db)
+):
     """Reject a pending tool call"""
     session = get_session(user_id)
     
@@ -302,6 +325,9 @@ async def reject_call(call_id: str, user_id: str = "default"):
         raise HTTPException(status_code=404, detail="Pending call not found")
     
     pending = session.pending_calls.pop(call_id)
+    
+    # Tracking: Increment agent rejection
+    await usage_service.increment(db, user_id, "agent_rejections")
     
     return {
         "status": "rejected",

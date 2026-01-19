@@ -238,6 +238,8 @@ async def query(
     
     if request.generate and chunks:
         result = await answer_service.generate_answer(
+            db=db,
+            user_id=user_id,
             query=request.query,
             chunks=chunks,
         )

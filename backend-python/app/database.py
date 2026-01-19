@@ -157,6 +157,34 @@ async def init_database():
         await conn.execute(text("""
             CREATE INDEX IF NOT EXISTS idx_rag_sources_collection ON rag_sources(collection_id)
         """))
+
+        # Create usage tracking table for analytics
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS usage_stats (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                user_id UUID NOT NULL,
+                period_start DATE NOT NULL,
+                period_end DATE NOT NULL,
+                rag_queries INTEGER DEFAULT 0,
+                rag_ingestions INTEGER DEFAULT 0,
+                rag_chunks_retrieved INTEGER DEFAULT 0,
+                agent_tool_calls INTEGER DEFAULT 0,
+                agent_approvals INTEGER DEFAULT 0,
+                agent_rejections INTEGER DEFAULT 0,
+                llm_requests INTEGER DEFAULT 0,
+                llm_tokens_input INTEGER DEFAULT 0,
+                llm_tokens_output INTEGER DEFAULT 0,
+                mcp_tool_calls INTEGER DEFAULT 0,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW(),
+                UNIQUE(user_id, period_start, period_end)
+            )
+        """))
+
+        # Create indexes for usage stats
+        await conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_usage_stats_user_period ON usage_stats(user_id, period_start)
+        """))
         
-        print("✅ Database initialized with pgvector, RAG collections, and storage tables")
+        print("✅ Database initialized with pgvector, RAG collections, usage stats, and storage tables")
 

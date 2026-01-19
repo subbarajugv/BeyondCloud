@@ -28,23 +28,30 @@
   let error = $state('');
   let periodDays = $state(30);
   
+  const RAG_API_BASE = 'http://localhost:8001/api';
+  
   async function fetchStats() {
     loading = true;
     error = '';
     
     try {
       const token = authStore.token;
-      const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json'
+      };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
       
       // Fetch aggregated stats
-      const statsRes = await fetch(`http://localhost:8001/api/usage/stats?days=${periodDays}`, { headers });
+      const statsRes = await fetch(`${RAG_API_BASE}/usage/stats?days=${periodDays}`, { headers });
       if (statsRes.ok) {
         const data = await statsRes.json();
         stats = data.stats;
       }
       
       // Fetch daily breakdown
-      const dailyRes = await fetch(`http://localhost:8001/api/usage/daily?days=7`, { headers });
+      const dailyRes = await fetch(`${RAG_API_BASE}/usage/daily?days=7`, { headers });
       if (dailyRes.ok) {
         const data = await dailyRes.json();
         dailyData = data.daily || [];

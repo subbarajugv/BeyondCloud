@@ -15,6 +15,11 @@ from typing import Optional, Dict, Any, List
 from app.services.mcp_service import mcp_service, MCPServerConfig
 from app.tracing import create_span
 from app.middleware.rbac import require_min_role
+from app.database import get_db
+from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import Depends
+from app.auth import get_current_user_id
+from app.services.usage_service import usage_service
 
 
 # RBAC: All MCP endpoints require agent_user role or higher
@@ -183,7 +188,11 @@ async def list_tools(server_id: Optional[str] = None):
 
 
 @router.post("/tools/call", response_model=CallToolResponse)
-async def call_tool(request: CallToolRequest):
+async def call_tool(
+    request: CallToolRequest,
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id)
+):
     """Execute a tool on an MCP server"""
     async with create_span("mcp.api.call_tool") as span:
         span.set_attribute("server_id", request.server_id)
@@ -202,6 +211,9 @@ async def call_tool(request: CallToolRequest):
                 tool_name=request.tool_name,
                 error=result["error"],
             )
+        
+        # Tracking: Increment MCP tool call
+        await usage_service.increment(db, user_id, "mcp_tool_calls")
         
         span.set_status("OK")
         return CallToolResponse(

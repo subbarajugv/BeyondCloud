@@ -13,6 +13,8 @@ from enum import Enum
 
 from app.tracing import create_span
 from app.services.provider_service import provider_service
+from app.services.usage_service import usage_service
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class ContextOrdering(str, Enum):
@@ -62,6 +64,8 @@ content
     
     async def generate_answer(
         self,
+        db: AsyncSession,
+        user_id: str,
         query: str,
         chunks: List[Dict[str, Any]],
         system_prompt: Optional[str] = None,
@@ -127,6 +131,14 @@ Please answer based on the context above."""
                 temperature=temperature,
                 max_tokens=max_tokens,
             )
+            
+            # Tracking: Increment LLM request and tokens
+            await usage_service.increment(db, user_id, "llm_requests")
+            usage = response.get("usage", {})
+            if usage.get("prompt_tokens"):
+                await usage_service.increment(db, user_id, "llm_tokens_input", amount=usage["prompt_tokens"])
+            if usage.get("completion_tokens"):
+                await usage_service.increment(db, user_id, "llm_tokens_output", amount=usage["completion_tokens"])
             
             if response.get("error"):
                 return AnswerResult(
@@ -265,6 +277,10 @@ Analyze the answer and respond with JSON:
                     max_tokens=500,
                 )
                 
+                # Tracking: Hallucination check is also an LLM request
+                # Note: We can't easily get db/user_id here without passing them to _check_hallucination
+                # For now, we skip tracking for background checks or pass them in
+                
                 import json
                 content = response.get("content", "").strip()
                 
@@ -283,6 +299,8 @@ Analyze the answer and respond with JSON:
     
     async def answer_with_grounding_check(
         self,
+        db: AsyncSession,
+        user_id: str,
         query: str,
         chunks: List[Dict[str, Any]],
         min_grounding_score: float = 0.5,
@@ -311,7 +329,7 @@ Analyze the answer and respond with JSON:
                 error="Insufficient grounding",
             )
         
-        return await self.generate_answer(query, grounded_chunks, check_hallucination=True)
+        return await self.generate_answer(db, user_id, query, grounded_chunks, check_hallucination=True)
 
 
 # Singleton instance

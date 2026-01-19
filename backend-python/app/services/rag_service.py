@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.tracing import create_span, tracer
 from app.config import get_settings
 from app.services.storage_service import get_storage_service
+from app.services.usage_service import usage_service
 
 
 class RAGService:
@@ -154,6 +155,9 @@ class RAGService:
             )
             
             await db.commit()
+
+            # Tracking: Increment RAG ingestion
+            await usage_service.increment(db, user_id, "rag_ingestions")
             
             return {
                 "source_id": source_id,
@@ -178,6 +182,9 @@ class RAGService:
             span.add_event("embedding_query")
             query_embedding = (await self.embed_texts([query]))[0]
             embedding_str = "[" + ",".join(str(x) for x in query_embedding) + "]"
+            
+            # Tracking: Increment RAG query
+            await usage_service.increment(db, user_id, "rag_queries")
             
             # Build query with optional source filter
             source_filter = ""
@@ -229,6 +236,11 @@ class RAGService:
             ]
             
             span.set_attribute("result_count", len(chunks))
+
+            # Tracking: Increment chunks retrieved
+            if chunks:
+                await usage_service.increment(db, user_id, "rag_chunks_retrieved", amount=len(chunks))
+                
             return chunks
     
     async def hybrid_retrieve(
