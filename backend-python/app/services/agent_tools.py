@@ -446,6 +446,124 @@ class AgentTools:
                 args={"code": code[:100] + "..."},
                 error=str(e)
             )
+    
+    async def screenshot(self, url: str, full_page: bool = False) -> ToolResponse:
+        """
+        Capture a screenshot of a webpage.
+        
+        Args:
+            url: URL to screenshot
+            full_page: Whether to capture full page (default: False)
+        """
+        try:
+            from playwright.async_api import async_playwright
+            import uuid
+            import base64
+            
+            async with async_playwright() as p:
+                browser = await p.chromium.launch(headless=True)
+                page = await browser.new_page()
+                await page.goto(url, timeout=30000)
+                await page.wait_for_load_state("networkidle")
+                
+                # Take screenshot as bytes
+                screenshot_bytes = await page.screenshot(full_page=full_page)
+                await browser.close()
+            
+            # Convert to base64 for transport
+            screenshot_b64 = base64.b64encode(screenshot_bytes).decode("utf-8")
+            
+            return ToolResponse(
+                status=ToolResult.SUCCESS,
+                tool_name="screenshot",
+                args={"url": url},
+                result={
+                    "image_base64": screenshot_b64,
+                    "size_bytes": len(screenshot_bytes),
+                    "format": "png"
+                },
+                requires_approval=False,  # Read-only operation
+                safety_level="safe"
+            )
+        except ImportError:
+            return ToolResponse(
+                status=ToolResult.ERROR,
+                tool_name="screenshot",
+                args={"url": url},
+                error="Playwright not installed. Run: pip install playwright && playwright install chromium"
+            )
+        except Exception as e:
+            return ToolResponse(
+                status=ToolResult.ERROR,
+                tool_name="screenshot",
+                args={"url": url},
+                error=str(e)
+            )
+    
+    async def database_query(self, sql: str) -> ToolResponse:
+        """
+        Execute a read-only SQL query on the database.
+        
+        Args:
+            sql: SQL SELECT query
+        """
+        # Safety: Only allow SELECT queries
+        ALLOWED_KEYWORDS = ["SELECT", "WITH"]
+        BLOCKED_KEYWORDS = ["INSERT", "UPDATE", "DELETE", "DROP", "CREATE", 
+                           "ALTER", "TRUNCATE", "GRANT", "REVOKE", "EXEC"]
+        
+        sql_upper = sql.strip().upper()
+        
+        # Check if starts with allowed keyword
+        if not any(sql_upper.startswith(kw) for kw in ALLOWED_KEYWORDS):
+            return ToolResponse(
+                status=ToolResult.ERROR,
+                tool_name="database_query",
+                args={"sql": sql[:100]},
+                error="Only SELECT queries are allowed"
+            )
+        
+        # Check for blocked keywords
+        for blocked in BLOCKED_KEYWORDS:
+            if blocked in sql_upper:
+                return ToolResponse(
+                    status=ToolResult.ERROR,
+                    tool_name="database_query",
+                    args={"sql": sql[:100]},
+                    error=f"{blocked} statements are not allowed"
+                )
+        
+        try:
+            from app.database import get_db_context
+            from sqlalchemy import text
+            
+            async with get_db_context() as db:
+                result = await db.execute(text(sql))
+                rows = result.mappings().all()
+                
+                # Convert to list of dicts
+                data = [dict(row) for row in rows[:100]]  # Limit to 100 rows
+            
+            return ToolResponse(
+                status=ToolResult.SUCCESS,
+                tool_name="database_query",
+                args={"sql": sql[:100]},
+                result={
+                    "rows": data,
+                    "row_count": len(data),
+                    "truncated": len(rows) > 100
+                },
+                requires_approval=True,  # Database access needs approval
+                safety_level="moderate"
+            )
+        except Exception as e:
+            return ToolResponse(
+                status=ToolResult.ERROR,
+                tool_name="database_query",
+                args={"sql": sql[:100]},
+                error=str(e)
+            )
+
 
 
 # Tool schema for LLM function calling
@@ -604,6 +722,44 @@ TOOL_SCHEMAS = [
                     }
                 },
                 "required": ["code"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "screenshot",
+            "description": "Capture a screenshot of a webpage",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "URL to screenshot"
+                    },
+                    "full_page": {
+                        "type": "boolean",
+                        "description": "Whether to capture full page (default: false)"
+                    }
+                },
+                "required": ["url"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "database_query",
+            "description": "Execute a read-only SQL SELECT query on the database",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "sql": {
+                        "type": "string",
+                        "description": "SQL SELECT query to execute"
+                    }
+                },
+                "required": ["sql"]
             }
         }
     }

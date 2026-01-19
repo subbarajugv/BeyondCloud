@@ -292,6 +292,10 @@ async def execute_tool(
             result = await tools.rag_query(args.get("query", ""), args.get("top_k", 5))
         elif tool_name == "run_python":
             result = await tools.run_python(args.get("code", ""), args.get("timeout", 10))
+        elif tool_name == "screenshot":
+            result = await tools.screenshot(args.get("url", ""), args.get("full_page", False))
+        elif tool_name == "database_query":
+            result = await tools.database_query(args.get("sql", ""))
         else:
             span.set_status("ERROR", f"Unknown tool: {tool_name}")
             raise HTTPException(status_code=400, detail=f"Unknown tool: {tool_name}")
