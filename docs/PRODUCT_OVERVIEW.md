@@ -56,9 +56,14 @@ Not a toy. This is a **production-grade retrieval engine**:
 | | S3-Compatible | Store originals in any S3-compatible bucket (AWS, Minio, etc.) |
 | **Storage** | pgvector | Native Postgres vector search |
 | | Hierarchical Collections | Nested folders with RBAC (public, role, team, private, personal) |
-| **Retrieval** | Hybrid Search | **BM25 Keyword + Vector Semantic** combined via **Reciprocal Rank Fusion (RRF)** |
+| **Query Enhancement** | Spelling Correction | Auto-fixes typos before retrieval |
+| | LLM Rewriting | Rewrites vague queries for better retrieval |
+| | Query Expansion | Adds synonyms: `auth errors` → `authentication failures` |
+| | Query Decomposition | Breaks multi-hop questions into sub-queries |
+| | Intent Detection | Classifies query type (factual, procedural, troubleshooting) |
+| **Retrieval** | HyDE | Hypothetical Document Embeddings for improved recall |
+| | Hybrid Search | **BM25 Keyword + Vector Semantic** combined via **Reciprocal Rank Fusion (RRF)** |
 | | Cross-Encoder Reranking | Scores query-document pairs for precision |
-| | HyDE | Hypothetical Document Embeddings for improved recall |
 | **Synthesis** | Grounding Score | Calculates how well responses are supported by sources |
 | | Citation Enforcement | Optionally require citations to prevent hallucinations |
 
