@@ -3,16 +3,24 @@
  * 
  * Supports two modes:
  * - Local: Agent daemon runs on user's machine (localhost:8002)
- * - Remote: Agent runs on backend server (for self-hosted setups)
+ * - Remote: Agent runs on backend server (localhost:8001)
+ * 
+ * All tool calls are routed through MCP protocol for consistency.
  */
 
 // Agent modes
 export type AgentMode = 'local' | 'remote';
 
 // Base URLs for each mode
-const AGENT_API_URLS = {
-    local: 'http://localhost:8002/api/agent',   // Local daemon
-    remote: 'http://localhost:8001/api/agent',  // Backend server
+const API_URLS = {
+    local: {
+        agent: 'http://localhost:8002/api/agent',
+        mcp: 'http://localhost:8002/api/mcp',
+    },
+    remote: {
+        agent: 'http://localhost:8001/api/agent',
+        mcp: 'http://localhost:8001/api/mcp',
+    },
 };
 
 // Current mode - persisted to localStorage
@@ -20,21 +28,17 @@ function getStoredMode(): AgentMode {
     if (typeof localStorage === 'undefined') return 'local';
     const stored = localStorage.getItem('agentMode');
     if (stored === 'local' || stored === 'remote') return stored;
-    return 'local'; // Default to local for SaaS
+    return 'local';
 }
 
 let currentMode: AgentMode = getStoredMode();
 
-/**
- * Get current agent mode
- */
+/** Get current agent mode */
 export function getAgentMode(): AgentMode {
     return currentMode;
 }
 
-/**
- * Set agent mode (local or remote)
- */
+/** Set agent mode (local or remote) */
 export function setAgentMode(mode: AgentMode): void {
     currentMode = mode;
     if (typeof localStorage !== 'undefined') {
@@ -42,16 +46,17 @@ export function setAgentMode(mode: AgentMode): void {
     }
 }
 
-/**
- * Get the API base URL for current mode
- */
+/** Get the Agent API base URL for current mode */
 function getAgentApiBase(): string {
-    return AGENT_API_URLS[currentMode];
+    return API_URLS[currentMode].agent;
 }
 
-/**
- * Check if local daemon is available
- */
+/** Get the MCP API base URL for current mode */
+function getMCPApiBase(): string {
+    return API_URLS[currentMode].mcp;
+}
+
+/** Check if local daemon is available */
 export async function checkLocalDaemon(): Promise<boolean> {
     try {
         const response = await fetch('http://localhost:8002/', {
@@ -71,44 +76,36 @@ export interface AgentStatus {
     sandbox_path: string | null;
     sandbox_active: boolean;
     approval_mode: ApprovalMode;
-    pending_approvals: number;
+    pending_approvals?: number;
+    pending_count?: number;
 }
 
 export interface PendingToolCall {
     id: string;
-    tool_name: string;
-    args: Record<string, unknown>;
+    name: string;
+    arguments: Record<string, unknown>;
     safety_level: 'safe' | 'moderate' | 'dangerous';
 }
 
 export interface ToolExecuteResult {
     status: 'success' | 'error' | 'pending_approval' | 'rejected';
-    tool_name: string;
-    args: Record<string, unknown>;
-    result?: unknown;
-    error?: string;
+    tool_name?: string;
+    content?: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
     call_id?: string;
     safety_level?: string;
-    message?: string;
+    error?: string;
 }
 
-export interface ToolSchema {
-    type: 'function';
-    function: {
-        name: string;
-        description: string;
-        parameters: {
-            type: 'object';
-            properties: Record<string, { type: string; description: string }>;
-            required: string[];
-        };
-    };
+export interface MCPTool {
+    name: string;
+    description: string;
+    inputSchema: Record<string, unknown>;
 }
 
 async function handleResponse<T>(response: Response): Promise<T> {
     if (!response.ok) {
         const text = await response.text();
-        throw new Error(`Agent API Error ${response.status}: ${text}`);
+        throw new Error(`API Error ${response.status}: ${text}`);
     }
     return response.json() as Promise<T>;
 }
@@ -117,10 +114,10 @@ async function handleResponse<T>(response: Response): Promise<T> {
  * Agent API endpoints
  */
 export const agentApi = {
-    /**
-     * Set the sandbox directory for agent operations
-     */
-    async setSandbox(path: string): Promise<{ success: boolean; sandbox_path: string; message: string }> {
+    // ========== Agent Configuration ==========
+
+    /** Set the sandbox directory for agent operations */
+    async setSandbox(path: string): Promise<{ success: boolean; path: string }> {
         const response = await fetch(`${getAgentApiBase()}/set-sandbox`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -129,10 +126,8 @@ export const agentApi = {
         return handleResponse(response);
     },
 
-    /**
-     * Set the approval mode
-     */
-    async setMode(mode: ApprovalMode): Promise<{ success: boolean; mode: string; message: string }> {
+    /** Set the approval mode */
+    async setMode(mode: ApprovalMode): Promise<{ success: boolean; mode: string }> {
         const response = await fetch(`${getAgentApiBase()}/set-mode`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -141,45 +136,37 @@ export const agentApi = {
         return handleResponse(response);
     },
 
-    /**
-     * Get current agent status
-     */
+    /** Get current agent status */
     async getStatus(): Promise<AgentStatus> {
         const response = await fetch(`${getAgentApiBase()}/status`);
         return handleResponse(response);
     },
 
-    /**
-     * Get available tool schemas for LLM
-     */
-    async getTools(): Promise<{ tools: ToolSchema[] }> {
-        const response = await fetch(`${getAgentApiBase()}/tools`);
+    // ========== MCP Tools ==========
+
+    /** Get available MCP tools */
+    async getTools(): Promise<{ tools: MCPTool[] }> {
+        const response = await fetch(`${getMCPApiBase()}/tools`);
         return handleResponse(response);
     },
 
-    /**
-     * Execute a tool (may require approval)
-     */
+    /** Execute a tool via MCP protocol */
     async executeTool(
-        toolName: string,
+        name: string,
         args: Record<string, unknown>,
         approved: boolean = false
     ): Promise<ToolExecuteResult> {
-        const response = await fetch(`${getAgentApiBase()}/execute`, {
+        const response = await fetch(`${getMCPApiBase()}/tools/call`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                tool_name: toolName,
-                args,
-                approved
-            })
+            body: JSON.stringify({ name, arguments: args, approved })
         });
         return handleResponse(response);
     },
 
-    /**
-     * Approve a pending tool call
-     */
+    // ========== Approval Flow ==========
+
+    /** Approve a pending tool call */
     async approveCall(callId: string): Promise<ToolExecuteResult> {
         const response = await fetch(`${getAgentApiBase()}/approve/${callId}`, {
             method: 'POST'
@@ -187,39 +174,31 @@ export const agentApi = {
         return handleResponse(response);
     },
 
-    /**
-     * Reject a pending tool call
-     */
-    async rejectCall(callId: string): Promise<{ status: string; tool_name: string; message: string }> {
+    /** Reject a pending tool call */
+    async rejectCall(callId: string): Promise<{ status: string }> {
         const response = await fetch(`${getAgentApiBase()}/reject/${callId}`, {
             method: 'POST'
         });
         return handleResponse(response);
     },
 
-    /**
-     * Get all pending tool calls
-     */
+    /** Get all pending tool calls */
     async getPendingCalls(): Promise<{ pending: PendingToolCall[] }> {
         const response = await fetch(`${getAgentApiBase()}/pending`);
         return handleResponse(response);
     },
 
-    // ========== MCP Server Management ==========
+    // ========== MCP Server Management (Remote Only) ==========
 
-    /**
-     * List all configured MCP servers (remote mode only)
-     */
+    /** List all configured MCP servers */
     async listMCPServers(): Promise<MCPServer[]> {
-        const response = await fetch(`http://localhost:8000/api/mcp/servers`);
+        const response = await fetch(`${API_URLS.remote.mcp}/servers`);
         return handleResponse(response);
     },
 
-    /**
-     * Add a new MCP server
-     */
+    /** Add a new MCP server */
     async addMCPServer(config: MCPServerConfig): Promise<{ id: string; name: string; is_active: boolean }> {
-        const response = await fetch(`http://localhost:8000/api/mcp/servers`, {
+        const response = await fetch(`${API_URLS.remote.mcp}/servers`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(config)
@@ -227,73 +206,18 @@ export const agentApi = {
         return handleResponse(response);
     },
 
-    /**
-     * Remove an MCP server
-     */
+    /** Remove an MCP server */
     async removeMCPServer(serverId: string): Promise<{ message: string }> {
-        const response = await fetch(`http://localhost:8000/api/mcp/servers/${serverId}`, {
+        const response = await fetch(`${API_URLS.remote.mcp}/servers/${serverId}`, {
             method: 'DELETE'
         });
         return handleResponse(response);
     },
 
-    /**
-     * Get tools from MCP servers
-     */
-    async getMCPTools(): Promise<{ tools: MCPTool[]; count: number }> {
-        const response = await fetch(`http://localhost:8000/api/mcp/tools/openai-format`);
+    /** Get tools in OpenAI format (for LLM) */
+    async getToolsOpenAIFormat(): Promise<{ tools: unknown[]; count: number }> {
+        const response = await fetch(`${API_URLS.remote.mcp}/tools/openai-format`);
         return handleResponse(response);
-    },
-
-    /**
-     * Execute a tool - routes to MCP if tool name starts with "mcp_"
-     */
-    async executeToolWithRouting(
-        toolName: string,
-        args: Record<string, unknown>,
-        approved: boolean = false
-    ): Promise<ToolExecuteResult> {
-        // Route MCP tools to MCP service
-        if (toolName.startsWith('mcp_')) {
-            return this.executeMCPTool(toolName, args);
-        }
-        // Otherwise use regular agent execution
-        return this.executeTool(toolName, args, approved);
-    },
-
-    /**
-     * Execute an MCP tool
-     */
-    async executeMCPTool(
-        toolName: string,
-        args: Record<string, unknown>
-    ): Promise<ToolExecuteResult> {
-        // Parse MCP tool name: mcp_{server_id}_{tool_name}
-        const parts = toolName.substring(4).split('_');
-        if (parts.length < 2) {
-            return { status: 'error', tool_name: toolName, args, error: 'Invalid MCP tool name' };
-        }
-        const serverId = parts[0];
-        const actualToolName = parts.slice(1).join('_');
-
-        const response = await fetch(`http://localhost:8000/api/mcp/tools/call`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                server_id: serverId,
-                tool_name: actualToolName,
-                args
-            })
-        });
-
-        const result = await handleResponse<{ status: string; tool_name: string; result?: unknown; error?: string }>(response);
-        return {
-            status: result.status as 'success' | 'error',
-            tool_name: toolName,
-            args,
-            result: result.result,
-            error: result.error
-        };
     }
 };
 
@@ -301,9 +225,9 @@ export const agentApi = {
 export interface MCPServer {
     id: string;
     name: string;
-    transport: 'stdio' | 'http';
+    transport: 'stdio' | 'http' | 'builtin';
     command?: string;
-    args: string[];
+    args?: string[];
     url?: string;
     is_active: boolean;
 }
@@ -317,14 +241,4 @@ export interface MCPServerConfig {
     env?: Record<string, string>;
 }
 
-export interface MCPTool {
-    type: 'function';
-    function: {
-        name: string;
-        description: string;
-        parameters: Record<string, unknown>;
-    };
-}
-
 export default agentApi;
-

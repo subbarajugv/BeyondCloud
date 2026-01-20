@@ -81,7 +81,7 @@ class AgentStore {
             isLoading = true;
             error = null;
             const result = await agentApi.setSandbox(path);
-            sandboxPath = result.sandbox_path;
+            sandboxPath = result.path;
             sandboxActive = true;
 
             // Load tool schemas
@@ -132,8 +132,8 @@ class AgentStore {
             if (result.status === 'pending_approval' && result.call_id) {
                 const pending: PendingToolCall = {
                     id: result.call_id,
-                    tool_name: toolName,
-                    args,
+                    name: toolName,
+                    arguments: args,
                     safety_level: (result.safety_level as 'safe' | 'moderate' | 'dangerous') || 'moderate'
                 };
                 pendingCalls = [...pendingCalls, pending];
