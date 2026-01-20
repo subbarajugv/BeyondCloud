@@ -63,3 +63,14 @@ We have a working product with Dual-Mode Agents, RAG, and Role-Based Access Cont
 | **B. Observability** | 1 Week | High |
 | **C. Scalability** | 2 Weeks | Medium |
 | **D. DevSecOps** | 1 Week | High |
+
+## Phase E: Evaluation Framework (The "Quality Control")
+**Goal:** Prove the AI isn't hallucinating.
+
+1.  **RAG Evaluation (RAGAS)**
+    *   **Action**: Run automated checks for *Faithfulness* (Did it hallucinate?) and *Answer Relevance*.
+    *   **Tool**: RAGAS or DeepEval.
+
+2.  **Agent Tracing & Scoring**
+    *   **Action**: Score every agent run on success/failure to properly label datasets.
+    *   **Tool**: Arize Phoenix or LangSmith.
