@@ -2,7 +2,7 @@
 BeyondCloud Agent - Core Agent Class
 
 An agent that:
-- Connects to an LLM (local llama.cpp or provider)
+- Calls existing backend for LLM (which handles all providers)
 - Discovers tools from MCP servers
 - Runs an agentic loop: Goal → Plan → Execute → Check → Repeat
 """
@@ -43,8 +43,14 @@ class AgentMessage(BaseModel):
 @dataclass
 class AgentConfig:
     """Agent configuration"""
-    llm_url: str = "http://localhost:8080/v1"  # llama.cpp server
+    # LLM - use existing backend (handles all providers: OpenAI, Gemini, Ollama, etc.)
+    llm_url: str = "http://localhost:8080/v1"  # llama.cpp or backend proxy
+    model: str = "local"
+    
+    # MCP settings
     mcp_urls: List[str] = field(default_factory=lambda: ["http://localhost:8001/api/mcp"])
+    
+    # Agent settings
     max_steps: int = 10
     timeout: int = 120
     system_prompt: str = "You are a helpful AI assistant with access to tools. Use them to help the user."
@@ -55,7 +61,7 @@ class AgentConfig:
 class Agent:
     """
     A proper agent with:
-    - LLM client for reasoning
+    - LLM client (uses existing backend which supports all providers)
     - Tool discovery from MCP servers
     - Agentic loop for goal completion
     """
@@ -136,7 +142,7 @@ class Agent:
         return "Maximum steps reached without completion"
 
     async def _call_llm(self) -> Optional[AgentMessage]:
-        """Call the LLM with current messages and tools"""
+        """Call the LLM via OpenAI-compatible API (llama.cpp or backend proxy)"""
         try:
             # Convert tools to OpenAI format
             tools_openai = [
@@ -149,18 +155,20 @@ class Agent:
                     }
                 }
                 for t in self.tools
-            ]
+            ] if self.tools else None
 
             # Build request
             payload = {
-                "model": "local",
+                "model": self.config.model,
                 "messages": [
                     {"role": m.role, "content": m.content}
                     for m in self.messages
-                ],
-                "tools": tools_openai if tools_openai else None,
-                "tool_choice": "auto" if tools_openai else None
+                ]
             }
+            
+            if tools_openai:
+                payload["tools"] = tools_openai
+                payload["tool_choice"] = "auto"
 
             response = await self.http.post(
                 f"{self.config.llm_url}/chat/completions",
@@ -178,9 +186,9 @@ class Agent:
             # Parse tool calls if present
             tool_calls = None
             if message.get("tool_calls"):
+                import json
                 tool_calls = []
                 for tc in message["tool_calls"]:
-                    import json
                     tool_calls.append(ToolCall(
                         id=tc.get("id", ""),
                         name=tc["function"]["name"],
