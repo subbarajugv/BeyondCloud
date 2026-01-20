@@ -77,6 +77,10 @@ Authorization: Bearer <access_token>  ← Required for protected routes
 | `GET /messages/:id` | 200 | `{ messages: [...] }` |
 | `POST /chat/completions` | 200 | SSE stream or `{ choices: [...] }` |
 | `GET /settings` | 200 | `{ theme, activeProvider, ... }` |
+| `GET /mcp/servers` | 200 | `{ servers: [...] }` |
+| `POST /mcp/servers` | 201 | `{ id, name, ... }` |
+| `GET /mcp/tools` | 200 | `{ tools: [...] }` |
+| `POST /mcp/tools/call` | 200 | `{ content: [...] }` |
 
 ---
 

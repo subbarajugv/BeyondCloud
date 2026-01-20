@@ -136,6 +136,7 @@ interface Step {
 |-------|------|----------|
 | `toolName` | string | Yes |
 | `arguments` | object | Yes |
+| `mode` | enum | 'direct', 'http' (remote) |
 | `timeout` | number | No (default 30s) |
 
 ### Outputs
@@ -254,13 +255,11 @@ interface Step {
 | `USER_REJECTED` | User rejected action |
 
 ### When Required
-| Action Type | Requires Approval |
-|-------------|-------------------|
-| File write | Yes |
-| External API call | Configurable |
-| Code execution | Yes |
-| Database modification | Yes |
-| Sending email/message | Yes |
+| `run_command` | Yes (Safe/Moderate/Dangerous levels) |
+| `database_query` | Yes (Read-only allowed, Write blocked) |
+| `python_executor` | Yes (Sandboxed, blocked imports) |
+| `write_file` | Yes (Sandbox path check) |
+| External API | Configurable |
 
 ---
 
