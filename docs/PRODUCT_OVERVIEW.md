@@ -25,10 +25,14 @@ Unique flexibility to run agents where it makes sense:
 - **Frontend**: Svelte 5 + TailwindCSS + DaisyUI
 - **LLM Support**: Ollama, llama.cpp, OpenAI-compatible APIs
 
-### 5. No Vendor Lock-in (Multi-Cloud Freedom) ☁️
-- **Model Agnostic**: Switch instantly between OpenAI, Anthropic, Google Gemini, Azure OpenAI, AWS Bedrock, or Local Models (Ollama/llama.cpp).
-- **Infrastructure Independent**: Deploy on-premise, in your private cloud (AWS/Azure/GCP), or hybrid.
-- **Data Privacy**: Your data never leaves your controlled environment unless you explicitly configure it.
+### 5. Multi-Tenant & Multi-Cloud Freedom 🏢☁️
+- **User & Data Isolation**: Built-in RBAC and Row-Level Security (RLS) ensure complete tenant isolation.
+### 5. Multi-Tenant & Multi-Provider Freedom 🏢☁️
+- **BYO-LLM (Bring Your Own Model)**: Each tenant can configure their preferred provider:
+    - **Tenant A**: Runs entirely on local **Ollama/llama.cpp** for privacy.
+    - **Tenant B**: Uses **OpenAI/Groq** for speed and performance.
+- **Tenant Isolation**: RBAC and RLS ensure that Tenant A's data never touches Tenant B's infrastructure.
+- **Infrastructure Independent**: Deploy on-premise, AWS, or Azure without code changes.
 
 ## Capabilities
 
