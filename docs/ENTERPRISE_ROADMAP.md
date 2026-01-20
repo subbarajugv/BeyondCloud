@@ -65,12 +65,16 @@ We have a working product with Dual-Mode Agents, RAG, and Role-Based Access Cont
 | **D. DevSecOps** | 1 Week | High |
 
 ## Phase E: Evaluation Framework (The "Quality Control")
-**Goal:** Prove the AI isn't hallucinating.
+**Goal:** Prove the AI isn't hallucinating. Use **DeepEval** for CI/CD, but ensure architecture supports **Custom Metrics**.
 
-1.  **RAG Evaluation (RAGAS)**
-    *   **Action**: Run automated checks for *Faithfulness* (Did it hallucinate?) and *Answer Relevance*.
-    *   **Tool**: RAGAS or DeepEval.
+1.  **CI/CD Pipeline (DeepEval)**
+    *   **Action**: Integrate `deepeval` into Pytest. Run assertions on every PR (e.g., `assert_test(answer, faithfulness > 0.7)`).
+    *   **Why**: Developer-friendly, treats Hallucinations like Unit Test failures.
 
-2.  **Agent Tracing & Scoring**
+2.  **Extensible Metrics (Brainstorming)** 🧠
+    *   **Need**: Support for domain-specific scoring (e.g., "Compliance Check", "Brand Voice Score") outside of standard libraries.
+    *   **Action**: Design a `Metric` interface that allows plugging in custom Python scoring logic or LLM-as-a-Judge prompts.
+
+3.  **Agent Tracing & Scoring**
     *   **Action**: Score every agent run on success/failure to properly label datasets.
-    *   **Tool**: Arize Phoenix or LangSmith.
+    *   **Tool**: Arize Phoenix (Tracing) + DeepEval (Scoring).
