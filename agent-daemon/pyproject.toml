@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "beyondcloud-agent"
+version = "0.1.0"
+description = "BeyondCloud AI Agent - Coding assistant with tool execution"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "BeyondCloud Team"}
+]
+keywords = ["ai", "agent", "llm", "coding", "mcp"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    "httpx>=0.25.0",
+    "pydantic>=2.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+]
+
+[project.scripts]
+beyondcloud = "cli:main"
+
+[project.urls]
+Homepage = "https://github.com/beyondcloud/agent"
+Documentation = "https://github.com/beyondcloud/agent#readme"
+Repository = "https://github.com/beyondcloud/agent"
+
+[tool.setuptools]
+packages = ["agent_daemon"]
+py-modules = ["agent", "cli", "custom_agents", "agent_daemon"]
+
+[tool.setuptools.package-data]
+"*" = ["*.md", "*.txt"]

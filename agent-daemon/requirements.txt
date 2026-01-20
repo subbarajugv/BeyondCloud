@@ -1,6 +1,10 @@
-# BeyondCloud Local Agent Daemon
+# BeyondCloud Agent
 # Install: pip install -r requirements.txt
 
+# Core
+httpx>=0.25.0
+pydantic>=2.0.0
+
+# Daemon mode (optional)
 fastapi>=0.109.0
 uvicorn>=0.27.0
-pydantic>=2.0.0

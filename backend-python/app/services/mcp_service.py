@@ -79,10 +79,10 @@ class MCPService:
         self._builtin_server = None
     
     async def register_builtin_server(self):
-        """Register the built-in BeyondCloud tools MCP server"""
-        from mcp_servers.beyondcloud_tools import BeyondCloudToolsServer
+        """Register the built-in BeyondCloud tools MCP server (FastMCP)"""
+        from mcp_servers.beyondcloud_tools.fastmcp_server import mcp as fastmcp_server
         
-        self._builtin_server = BeyondCloudToolsServer()
+        self._builtin_server = fastmcp_server
         
         # Register it in our servers list
         config = MCPServerConfig(
@@ -93,17 +93,17 @@ class MCPService:
         )
         self._servers["beyondcloud-tools"] = config
         
-        # Get tools from built-in server
-        tools_response = await self._builtin_server._handle_tools_list()
+        # Get tools from FastMCP server
+        tools = fastmcp_server._tool_manager._tools
         self._tools_cache["beyondcloud-tools"] = [
             MCPTool(
                 server_id="beyondcloud-tools",
                 server_name="BeyondCloud Tools",
-                name=t["name"],
-                description=t["description"],
-                input_schema=t["inputSchema"]
+                name=name,
+                description=tool.description or "",
+                input_schema=tool.parameters if isinstance(tool.parameters, dict) else {}
             )
-            for t in tools_response.get("tools", [])
+            for name, tool in tools.items()
         ]
         
         return True
@@ -251,14 +251,26 @@ class MCPService:
             
             config = self._servers[server_id]
             
-            # Handle built-in server
+            # Handle built-in server (FastMCP)
             if config.transport == "builtin" and self._builtin_server:
                 try:
-                    result = await self._builtin_server._execute_tool(tool_name, args)
+                    # Get the tool from FastMCP
+                    tool = self._builtin_server._tool_manager._tools.get(tool_name)
+                    if not tool:
+                        span.set_status("ERROR", f"Tool not found: {tool_name}")
+                        return {"error": f"Tool not found: {tool_name}"}
+                    
+                    # Execute the tool function
+                    import asyncio
+                    if asyncio.iscoroutinefunction(tool.fn):
+                        result = await tool.fn(**args)
+                    else:
+                        result = tool.fn(**args)
+                    
                     span.set_status("OK")
                     return {
-                        "status": "success" if not result.isError else "error",
-                        "content": result.content,
+                        "status": "success",
+                        "content": [{"type": "text", "text": str(result)}],
                         "tool": tool_name,
                     }
                 except Exception as e:

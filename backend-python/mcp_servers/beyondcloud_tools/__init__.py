@@ -1,12 +1,12 @@
 """
-BeyondCloud Tools - Built-in MCP Server
+BeyondCloud Tools - Built-in MCP Server (FastMCP)
 
 Provides core tools:
-- web_search: DuckDuckGo search
-- screenshot: Webpage capture
-- python_executor: Sandboxed Python
-- database_query: Read-only SQL
+- list_dir, read_file, write_file, search_files
+- think, plan_task
+- run_command, python_executor
+- web_search, screenshot, database_query
 """
-from .server import BeyondCloudToolsServer
+from .fastmcp_server import mcp
 
-__all__ = ["BeyondCloudToolsServer"]
+__all__ = ["mcp"]

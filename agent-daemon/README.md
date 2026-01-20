@@ -1,41 +1,67 @@
-# BeyondCloud Local Agent Daemon
+# BeyondCloud Agent
 
-A lightweight daemon that runs on your machine to enable AI file and command operations.
+AI-powered coding assistant with local or cloud LLM support and tool execution.
 
-## Quick Start
+## Installation
 
 ```bash
-# Install dependencies
-pip install -r requirements.txt
-
-# Start the daemon
-python agent_daemon.py
-
-# Or with a preset working directory
-python agent_daemon.py --sandbox ~/projects/myapp
+# Install from source
+cd agent-daemon
+pip install -e .
 ```
 
 ## Usage
 
-1. Start the daemon on your machine
-2. Open the BeyondCloud web app
-3. Go to Settings → Agent → Select "Local Agent" mode
-4. Set your working directory in the UI
-5. Start chatting - the AI can now work with your files!
+### CLI Mode (New!)
 
-## API Endpoints
+```bash
+# Run with local Ollama
+beyondcloud "Create a Python script that lists files"
 
-- `GET /` - Daemon status
-- `GET /api/agent/status` - Agent status
-- `POST /api/agent/set-sandbox` - Set working directory
-- `GET /api/agent/tools` - Get tool schemas
+# Run with llama.cpp
+beyondcloud "Explain this code" --llm http://localhost:8080/v1
+
+# Interactive mode
+beyondcloud -i
+
+# With OpenAI API
+beyondcloud "Refactor this" --llm https://api.openai.com/v1 --api-key $OPENAI_API_KEY
+```
+
+### Daemon Mode
+
+```bash
+# Start the daemon (for web UI integration)
+python agent_daemon.py --sandbox ~/projects/myapp
+```
+
+## Configuration
+
+| Env Variable | Default | Description |
+|--------------|---------|-------------|
+| `BEYONDCLOUD_LLM_URL` | `http://localhost:11434/v1` | LLM endpoint |
+| `BEYONDCLOUD_MODEL` | `qwen2.5-coder:7b` | Model name |
+| `BEYONDCLOUD_MCP_URL` | `http://localhost:8001/api/mcp` | MCP tools server |
+
+## Architecture
+
+```
+CLI/Daemon → Agent Core → LLM (local/cloud) → MCP Tools → Sandbox
+```
+
+- **Agent Core** (`agent.py`): Agentic loop with tool calling
+- **CLI** (`cli.py`): Command-line interface
+- **Daemon** (`agent_daemon.py`): HTTP server for web UI integration
+
+## API Endpoints (Daemon Mode)
+
+- `GET /` - Status
+- `GET /api/agent/tools` - Available tools
 - `POST /api/agent/execute` - Execute a tool
 - `POST /api/agent/approve/{id}` - Approve pending tool
-- `POST /api/agent/reject/{id}` - Reject pending tool
 
 ## Security
 
-- Runs on localhost only (127.0.0.1)
-- CORS restricted to known frontend origins
-- Commands require approval by default
-- All file operations sandboxed to working directory
+- Runs on localhost only
+- Commands require approval
+- File operations sandboxed to working directory

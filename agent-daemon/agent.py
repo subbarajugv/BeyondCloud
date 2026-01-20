@@ -209,15 +209,20 @@ class Agent:
             return None
 
     async def _execute_tools(self, tool_calls: List[ToolCall]) -> List[AgentMessage]:
-        """Execute tool calls on their respective MCP servers"""
+        """Execute tool calls using injected executor or MCP servers"""
         results = []
 
         for tc in tool_calls:
-            mcp_url = self.tool_sources.get(tc.name)
-            if not mcp_url:
-                result = f"Error: Tool '{tc.name}' not found"
+            # Use injected executor if available (from CLI)
+            if hasattr(self, 'tool_executor') and self.tool_executor:
+                result = await self.tool_executor.call_tool(tc.name, tc.arguments)
             else:
-                result = await self._execute_single_tool(mcp_url, tc.name, tc.arguments)
+                # Fall back to HTTP MCP
+                mcp_url = self.tool_sources.get(tc.name)
+                if not mcp_url:
+                    result = f"Error: Tool '{tc.name}' not found"
+                else:
+                    result = await self._execute_single_tool(mcp_url, tc.name, tc.arguments)
 
             results.append(AgentMessage(
                 role="tool",

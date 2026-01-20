@@ -158,10 +158,12 @@ async def remove_server(server_id: str):
         return {"message": "Server removed successfully"}
 
 
-@router.get("/tools", response_model=List[ToolResponse])
+@router.get("/tools")
 async def list_tools(server_id: Optional[str] = None):
     """
     List available tools from MCP servers.
+    
+    Returns tools in standard MCP format: {"tools": [...]}
     
     Args:
         server_id: Optional filter by server
@@ -175,16 +177,19 @@ async def list_tools(server_id: Optional[str] = None):
         span.set_attribute("tool_count", len(tools))
         span.set_status("OK")
         
-        return [
-            ToolResponse(
-                server_id=t.server_id,
-                server_name=t.server_name,
-                name=t.name,
-                description=t.description,
-                input_schema=t.input_schema,
-            )
-            for t in tools
-        ]
+        # Return in standard MCP format
+        return {
+            "tools": [
+                {
+                    "name": t.name,
+                    "description": t.description,
+                    "inputSchema": t.input_schema,
+                    "server_id": t.server_id,
+                    "server_name": t.server_name,
+                }
+                for t in tools
+            ]
+        }
 
 
 @router.post("/tools/call", response_model=CallToolResponse)
