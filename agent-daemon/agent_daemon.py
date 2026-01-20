@@ -178,6 +178,10 @@ class BeyondCloudLocalMCP:
     # Implementations
     async def _tool_read_file(self, args):
         path = self.guard.resolve_path(args.get("path"))
+        if not path.exists():
+            return ToolResult(content=[{"type": "text", "text": f"File not found: {path}"}], isError=True)
+        if not path.is_file():
+            return ToolResult(content=[{"type": "text", "text": f"Not a file: {path}"}], isError=True)
         return ToolResult(content=[{"type": "text", "text": path.read_text(encoding='utf-8', errors='replace')}])
 
     async def _tool_write_file(self, args):
@@ -231,7 +235,8 @@ class BeyondCloudLocalMCP:
             path = f.name
         try:
             res = subprocess.run(['python', path], capture_output=True, text=True, timeout=args.get("timeout", 10))
-            return ToolResult(content=[{"type": "text", "text": res.stdout + res.stderr or "(no output)"}])
+            output = (res.stdout + res.stderr) or "(no output)"
+            return ToolResult(content=[{"type": "text", "text": output}])
         finally: os.unlink(path)
 
     async def _tool_database_query(self, args):
@@ -261,7 +266,13 @@ app = FastAPI(title="BeyondCloud Local Agent (MCP)", version=VERSION)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:5173",  # Vite dev
+        "http://localhost:3000",  # Common
+        "http://localhost:4173",  # Vite preview
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:3000",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
