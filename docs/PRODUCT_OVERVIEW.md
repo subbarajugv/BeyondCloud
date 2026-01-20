@@ -5,6 +5,9 @@
 
 BeyondCloud is a secure, modular platform that lets you **Bring Your Own Model (BYO-LLM)** and infrastructure. It bridges the gap between local privacy (Ollama, air-gapped) and cloud power (OpenAI, Anthropic), offering a unified "Operating System" for RAG and Agents.
 
+### Heritage
+> Originally forked from the community-favorite `llama.cpp webui`, minimal-chat has been *significantly refactored* into an enterprise-grade platform. We retained the speed and simplicity of the original while adding the security, modularity, and agentic capabilities required for business.
+
 ## Key Value Proposition
 
 ### 1. **Dual-Mode Agent Architecture** 🧠
