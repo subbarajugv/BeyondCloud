@@ -43,6 +43,16 @@ logger = logging.getLogger("agent-daemon")
 DEFAULT_PORT = 8002
 VERSION = "2.0.0"
 
+# CORS origins - configurable via env
+DEFAULT_CORS_ORIGINS = [
+    "http://localhost:5173",  # Vite dev
+    "http://localhost:3000",  # Common
+    "http://localhost:4173",  # Vite preview
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:3000",
+]
+CORS_ORIGINS = os.getenv("CORS_ORIGINS", "").split(",") if os.getenv("CORS_ORIGINS") else DEFAULT_CORS_ORIGINS
+
 # ========== MCP Models ==========
 
 @dataclass
@@ -266,13 +276,7 @@ app = FastAPI(title="BeyondCloud Local Agent (MCP)", version=VERSION)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",  # Vite dev
-        "http://localhost:3000",  # Common
-        "http://localhost:4173",  # Vite preview
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:3000",
-    ],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
