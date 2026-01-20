@@ -41,34 +41,62 @@ Unique flexibility to run agents where it makes sense:
 
 ## Capabilities
 
-### 1. Autonomous Agents
-- Plan, think, and execute complex multi-step tasks.
-- Self-correcting loops with error recovery.
+### 1. Autonomous Agents 🤖
+- **ReAct Loop**: Plan → Think → Execute → Observe. Self-correcting with error recovery.
+- **Dual-Mode Execution**: Run locally (zero-latency) or remotely (centralized, RBAC-protected).
+- **Human-in-the-Loop**: Configurable approval gates for dangerous actions.
 
-### 2. Advanced Adaptive RAG 📚
-Most advanced "Out-of-the-Box" RAG engine in the market, fully customizable at every layer:
-- **Ingestion**: Multi-format support (PDF, MD, Code) with smart chunking strategies (Sentence, Paragraph, Semantic).
-- **Storage**: Pluggable Vector DBs (pgvector, Chroma, Qdrant) with metadata filtering.
-- **Retrieval**: HyDE (Hypothetical Document Embeddings), Hybrid Search (Keyword + Semantic), and Re-ranking.
-- **Synthesis**:
-    - **Context Assembly**: Dynamic window context management.
-    - **Grounding**: Citiation-backed answers to prevent hallucinations.
-    - **Guardrails**: Prompt injection defense and sensitivity filtering.
+### 2. Enterprise-Grade RAG 📚
+Not a toy. This is a **production-grade retrieval engine**:
 
-### 3. Sandboxed Execution
+| Layer | Feature | Details |
+| :--- | :--- | :--- |
+| **Ingestion** | Multi-Format | PDF, Markdown, DOCX, Code Files |
+| | Smart Chunking | Sentence, Paragraph, Semantic, and Recursive strategies |
+| | S3-Compatible | Store originals in any S3-compatible bucket (AWS, Minio, etc.) |
+| **Storage** | pgvector | Native Postgres vector search |
+| | Hierarchical Collections | Nested folders with RBAC (public, role, team, private, personal) |
+| **Retrieval** | Hybrid Search | **BM25 Keyword + Vector Semantic** combined via **Reciprocal Rank Fusion (RRF)** |
+| | Cross-Encoder Reranking | Scores query-document pairs for precision |
+| | HyDE | Hypothetical Document Embeddings for improved recall |
+| **Synthesis** | Grounding Score | Calculates how well responses are supported by sources |
+| | Citation Enforcement | Optionally require citations to prevent hallucinations |
+
+### 3. Defense-in-Depth Guardrails 🛡️
+**Agent Guardrails** (for Tools):
+- Command Blocklist: `sudo`, `rm -rf`, fork bombs, etc.
+- Path Restrictions: Cannot access `/etc`, `/root`, `~/.ssh`.
+- Sandbox Enforcement: File operations locked to declared workspace.
+
+**RAG Guardrails** (for Queries):
+- Prompt Injection Detection: Catches `ignore previous instructions` attacks.
+- Toxicity Filtering: Blocks harmful queries.
+- PII Detection: Warns on sensitive data in queries.
+
+### 4. Usage Analytics & Metering 📊
+Built-in counters for:
+- `rag_queries`, `rag_ingestions`, `rag_chunks_retrieved`
+- `agent_tool_calls`, `agent_approvals`, `agent_rejections`
+- `llm_requests`, `llm_tokens_input`, `llm_tokens_output`
+- Daily/weekly/monthly breakdowns per user (ready for billing).
+
+### 5. Sandboxed Execution 🏗️
 - Safe file and code operations in isolated environments.
+- Configurable sandbox path per user/session.
 
-### 4. Real-time Streaming
-- SSE-based live updates of agent thoughts and actions.
+### 6. Real-time Streaming ⚡
+- SSE-based live updates of agent thoughts, tool calls, and results.
 
 ## Use Cases
-
 - **DevOps Automation**: "Check git status and deploy to staging" (with approval).
 - **Data Analysis**: "Query the database and visualize sales trends."
 - **Code Refactoring**: "Read this file and refactor the class structure."
 - **Knowledge Management**: "Search internal docs and answer compliance questions."
+- **Secure Copilot**: Deploy inside your firewall, no data leaves.
 
 ## Ready for Business
 - **Docker Ready**: One-command deployment.
-- **Observability**: OpenTelemetry tracing integration.
+- **Observability**: OpenTelemetry tracing integration (Jaeger/Prometheus ready).
 - **Scalable**: Stateless backend design.
+- **Usage Tracking**: Built-in metering for billing integration.
+
