@@ -1,7 +1,9 @@
 # BeyondCloud: Enterprise AI Agent Platform
 
 ## Executive Summary
-BeyondCloud is a secure, modular, and high-performance AI Agent Platform designed for enterprise environments. It bridges the gap between local LLMs (Ollama, llama.cpp) and production-grade agent orchestration, offering a "Frontend-First" experience with robust backend guardrails.
+**BeyondCloud: The Universal AI Operating System for Enterprise.**
+
+BeyondCloud is a secure, modular platform that lets you **Bring Your Own Model (BYO-LLM)** and infrastructure. It bridges the gap between local privacy (Ollama, air-gapped) and cloud power (OpenAI, Anthropic), offering a unified "Operating System" for RAG and Agents.
 
 ## Key Value Proposition
 
