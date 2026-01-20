@@ -27,12 +27,25 @@ Unique flexibility to run agents where it makes sense:
 
 ## Capabilities
 
-| Feature | Description |
-|---------|-------------|
-| **Autonomous Agents** | Plan, think, and execute complex multi-step tasks. |
-| **RAG (Retrieval)** | Ingest and query documents (PDF, Markdown) with vector search. |
-| **Sandboxed Execution** | Safe file and code operations in isolated environments. |
-| **Real-time Streaming** | SSE-based live updates of agent thoughts and actions. |
+### 1. Autonomous Agents
+- Plan, think, and execute complex multi-step tasks.
+- Self-correcting loops with error recovery.
+
+### 2. Advanced Adaptive RAG 📚
+Most advanced "Out-of-the-Box" RAG engine in the market, fully customizable at every layer:
+- **Ingestion**: Multi-format support (PDF, MD, Code) with smart chunking strategies (Sentence, Paragraph, Semantic).
+- **Storage**: Pluggable Vector DBs (pgvector, Chroma, Qdrant) with metadata filtering.
+- **Retrieval**: HyDE (Hypothetical Document Embeddings), Hybrid Search (Keyword + Semantic), and Re-ranking.
+- **Synthesis**:
+    - **Context Assembly**: Dynamic window context management.
+    - **Grounding**: Citiation-backed answers to prevent hallucinations.
+    - **Guardrails**: Prompt injection defense and sensitivity filtering.
+
+### 3. Sandboxed Execution
+- Safe file and code operations in isolated environments.
+
+### 4. Real-time Streaming
+- SSE-based live updates of agent thoughts and actions.
 
 ## Use Cases
 
