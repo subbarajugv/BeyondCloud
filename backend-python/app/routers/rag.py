@@ -354,6 +354,43 @@ async def update_source_visibility(
     }
 
 
+# ========== Embedding Models Endpoint ==========
+
+from app.services.embedding_service import EmbeddingService, EMBEDDING_MODELS
+
+
+@router.get("/embedding-models")
+async def list_embedding_models(
+    provider: str = None,
+):
+    """
+    List available embedding models by provider.
+    
+    Query params:
+    - provider: Filter by provider (sentence_transformers, openai, ollama)
+    """
+    if provider:
+        if provider not in EMBEDDING_MODELS:
+            return {"error": f"Unknown provider: {provider}", "available": list(EMBEDDING_MODELS.keys())}
+        return {
+            "provider": provider,
+            "models": [
+                {"name": name, "dimensions": dims}
+                for name, dims in EMBEDDING_MODELS[provider].items()
+            ]
+        }
+    
+    return {
+        "providers": [
+            {
+                "name": p,
+                "models": [{"name": m, "dimensions": d} for m, d in models.items()]
+            }
+            for p, models in EMBEDDING_MODELS.items()
+        ]
+    }
+
+
 # ========== RAG Settings Endpoints ==========
 
 from app.schemas.rag_settings import RAGSettingsBase, RAGSettingsUpdate, RAGSettingsResponse

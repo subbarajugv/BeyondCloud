@@ -20,6 +20,16 @@ class RAGSettingsBase(BaseModel):
     chunk_overlap: int = Field(50, ge=0, le=500, description="Overlap between chunks")
     use_sentence_boundary: bool = Field(True, description="Split at sentence boundaries")
     
+    # Embedding options
+    embedding_provider: str = Field(
+        "sentence_transformers",
+        description="Embedding provider: sentence_transformers, openai, ollama"
+    )
+    embedding_model: str = Field(
+        "all-MiniLM-L6-v2",
+        description="Model name for the embedding provider"
+    )
+    
     # Reranking options
     reranker_model: str = Field(
         "cross-encoder/ms-marco-MiniLM-L-6-v2",
@@ -63,6 +73,8 @@ class RAGSettingsUpdate(BaseModel):
     chunk_size: Optional[int] = Field(None, ge=100, le=2000)
     chunk_overlap: Optional[int] = Field(None, ge=0, le=500)
     use_sentence_boundary: Optional[bool] = None
+    embedding_provider: Optional[str] = None
+    embedding_model: Optional[str] = None
     reranker_model: Optional[str] = None
     rerank_top_k: Optional[int] = Field(None, ge=1, le=20)
     min_score: Optional[float] = Field(None, ge=0.0, le=1.0)

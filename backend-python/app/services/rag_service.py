@@ -24,15 +24,31 @@ class RAGService:
     """
     
     def __init__(self):
-        self._embedder = None
+        self._embedding_service = None
     
-    async def get_embedder(self):
-        """Lazy-load the embedding model from config"""
-        if self._embedder is None:
-            from sentence_transformers import SentenceTransformer
-            settings = get_settings()
-            self._embedder = SentenceTransformer(settings.embedding_model)
-        return self._embedder
+    def get_embedding_service(self):
+        """Get the configured embedding service"""
+        if self._embedding_service is None:
+            from app.services.embedding_service import embedding_service
+            self._embedding_service = embedding_service
+        return self._embedding_service
+    
+    def configure_embeddings(
+        self,
+        provider: str = "sentence_transformers",
+        model: str = "all-MiniLM-L6-v2",
+        **kwargs
+    ):
+        """
+        Configure the embedding provider and model.
+        
+        Args:
+            provider: One of 'sentence_transformers', 'openai', 'ollama'
+            model: Model name for the provider
+            **kwargs: Provider-specific options (api_key, base_url)
+        """
+        service = self.get_embedding_service()
+        service.configure(provider=provider, model=model, **kwargs)
     
     def chunk_text(
         self, 
@@ -64,10 +80,9 @@ class RAGService:
         return [c for c in chunks if c]  # Remove empty chunks
     
     async def embed_texts(self, texts: List[str]) -> List[List[float]]:
-        """Generate embeddings for texts"""
-        embedder = await self.get_embedder()
-        embeddings = embedder.encode(texts, convert_to_numpy=True)
-        return embeddings.tolist()
+        """Generate embeddings for texts using configured provider"""
+        service = self.get_embedding_service()
+        return await service.embed(texts)
     
     async def ingest_text(
         self,
