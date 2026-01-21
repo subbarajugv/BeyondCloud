@@ -1,0 +1,84 @@
+{{- if .Values.nodejsBackend.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "beyondcloud.fullname" . }}-nodejs
+  labels:
+    {{- include "beyondcloud.labels" . | nindent 4 }}
+    app.kubernetes.io/component: nodejs-backend
+spec:
+  {{- if not .Values.nodejsBackend.autoscaling.enabled }}
+  replicas: {{ .Values.nodejsBackend.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "beyondcloud.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: nodejs-backend
+  template:
+    metadata:
+      labels:
+        {{- include "beyondcloud.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: nodejs-backend
+    spec:
+      containers:
+        - name: nodejs-backend
+          image: "{{ .Values.nodejsBackend.image.repository }}:{{ .Values.nodejsBackend.image.tag }}"
+          imagePullPolicy: {{ .Values.nodejsBackend.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.nodejsBackend.service.port }}
+              protocol: TCP
+          env:
+            - name: PORT
+              value: "{{ .Values.nodejsBackend.service.port }}"
+            - name: NODE_ENV
+              value: "production"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "beyondcloud.fullname" . }}-secrets
+                  key: database-url
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "beyondcloud.fullname" . }}-secrets
+                  key: jwt-secret
+            {{- if .Values.observability.otel.enabled }}
+            - name: OTEL_ENABLED
+              value: "true"
+            - name: OTEL_ENDPOINT
+              value: {{ .Values.observability.otel.endpoint | quote }}
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.nodejsBackend.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "beyondcloud.fullname" . }}-nodejs
+  labels:
+    {{- include "beyondcloud.labels" . | nindent 4 }}
+    app.kubernetes.io/component: nodejs-backend
+spec:
+  type: {{ .Values.nodejsBackend.service.type }}
+  ports:
+    - port: {{ .Values.nodejsBackend.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "beyondcloud.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: nodejs-backend
+{{- end }}

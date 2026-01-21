@@ -149,8 +149,26 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         # Enable HSTS in production
         if not settings.debug:
             response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-        # Content Security Policy
-        response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
+        # Content Security Policy - HARDENED for enterprise
+        # - No inline scripts (XSS prevention)
+        # - Restrict connections to known APIs
+        # - Allow styles with unsafe-inline for compatibility (consider nonce in future)
+        csp_directives = [
+            "default-src 'self'",
+            "script-src 'self'",  # No 'unsafe-inline' - blocks XSS
+            "style-src 'self' 'unsafe-inline'",  # Allow inline styles for UI frameworks
+            "img-src 'self' data: https:",
+            "font-src 'self' data:",
+            "connect-src 'self' http://localhost:* https://api.openai.com https://generativelanguage.googleapis.com https://api.groq.com",
+            "frame-ancestors 'none'",
+            "base-uri 'self'",
+            "form-action 'self'",
+        ]
+        response.headers["Content-Security-Policy"] = "; ".join(csp_directives)
+        # Referrer Policy
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        # Permissions Policy (formerly Feature-Policy)
+        response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
         return response
 
 app.add_middleware(SecurityHeadersMiddleware)
@@ -188,6 +206,10 @@ app.include_router(mcp.router)
 # Usage routes (Analytics)
 from app.routers import usage
 app.include_router(usage.router, prefix="/api")
+
+# Deep health checks (Phase B - Enterprise)
+from app.routers import health
+app.include_router(health.router)
 
 # Models endpoint (convenience alias)
 @app.get("/api/models")

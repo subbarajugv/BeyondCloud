@@ -71,3 +71,24 @@ PyJWT>=2.7.0
 # Phase 10: S3-Compatible Storage
 # ======================================
 boto3>=1.34.0
+
+# ======================================
+# Phase A: Enterprise Security
+# ======================================
+hvac>=1.2.0  # HashiCorp Vault client
+
+# ======================================
+# Phase B: Observability (OTel)
+# ======================================
+opentelemetry-api>=1.20.0
+opentelemetry-sdk>=1.20.0
+opentelemetry-instrumentation-fastapi>=0.41b0
+opentelemetry-exporter-otlp>=1.20.0
+
+# ======================================
+# Phase E: Evaluation Framework
+# ======================================
+deepeval>=0.21.0
+sentence-transformers>=2.2.0  # Embedding-based metrics
+ragas>=0.1.0  # RAG evaluation (optional)
+arize-phoenix>=3.0.0  # LLM observability (optional)

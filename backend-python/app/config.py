@@ -1,5 +1,13 @@
 """
 Configuration settings for the Python backend
+
+Enterprise Secrets Management:
+    Set SECRET_BACKEND environment variable:
+    - "env" (default): Use .env files (development only)
+    - "vault": HashiCorp Vault (production)
+    - "aws": AWS Secrets Manager (production)
+    
+    See app/secrets.py for implementation details.
 """
 import os
 from typing import Dict, Any, Optional

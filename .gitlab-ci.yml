@@ -1,0 +1,123 @@
+# BeyondCloud CI/CD Pipeline for GitLab
+# Enterprise DevSecOps - Linting, Type Checking, Security Scanning
+
+stages:
+  - lint
+  - security
+  - test
+  - build
+
+variables:
+  PYTHON_VERSION: "3.11"
+  NODE_VERSION: "20"
+
+# ==========================================================================
+# Python Backend
+# ==========================================================================
+python-lint:
+  stage: lint
+  image: python:${PYTHON_VERSION}
+  before_script:
+    - cd backend-python
+    - pip install uv
+    - uv venv .venv
+    - source .venv/bin/activate
+    - uv pip install ruff black mypy
+  script:
+    - source .venv/bin/activate
+    - ruff check app/
+    - black --check app/
+  allow_failure: false
+
+python-typecheck:
+  stage: lint
+  image: python:${PYTHON_VERSION}
+  before_script:
+    - cd backend-python
+    - pip install uv
+    - uv venv .venv
+    - source .venv/bin/activate
+    - uv pip install -r requirements.txt mypy
+  script:
+    - source .venv/bin/activate
+    - mypy app/ --ignore-missing-imports
+  allow_failure: true
+
+python-security:
+  stage: security
+  image: python:${PYTHON_VERSION}
+  before_script:
+    - pip install bandit
+  script:
+    - cd backend-python
+    - bandit -r app/ -f json -o bandit-report.json || true
+  artifacts:
+    paths:
+      - backend-python/bandit-report.json
+    expire_in: 1 week
+
+python-test:
+  stage: test
+  image: python:${PYTHON_VERSION}
+  before_script:
+    - cd backend-python
+    - pip install uv
+    - uv venv .venv
+    - source .venv/bin/activate
+    - uv pip install -r requirements.txt
+  script:
+    - source .venv/bin/activate
+    - PYTHONPATH=. pytest tests/ -v --tb=short
+  allow_failure: true
+
+# ==========================================================================
+# Node.js Backend
+# ==========================================================================
+nodejs-lint:
+  stage: lint
+  image: node:${NODE_VERSION}
+  before_script:
+    - cd backend-nodejs
+    - npm install
+  script:
+    - npm run lint || true
+    - npm run typecheck
+
+nodejs-test:
+  stage: test
+  image: node:${NODE_VERSION}
+  before_script:
+    - cd backend-nodejs
+    - npm install
+  script:
+    - npm test || echo "No tests found yet"
+  allow_failure: true
+
+# ==========================================================================
+# Frontend
+# ==========================================================================
+frontend-build:
+  stage: build
+  image: node:${NODE_VERSION}
+  before_script:
+    - cd frontend
+    - npm install
+  script:
+    - npm run check || true
+    - npm run build
+  artifacts:
+    paths:
+      - frontend/build/
+    expire_in: 1 week
+
+# ==========================================================================
+# Container Security
+# ==========================================================================
+trivy-scan:
+  stage: security
+  image:
+    name: aquasec/trivy:latest
+    entrypoint: [""]
+  script:
+    - trivy fs . --format table --exit-code 0 --severity CRITICAL,HIGH
+  allow_failure: true

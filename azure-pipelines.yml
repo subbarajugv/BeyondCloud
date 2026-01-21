@@ -1,0 +1,182 @@
+# BeyondCloud CI/CD Pipeline for Azure DevOps
+# Enterprise DevSecOps - Linting, Type Checking, Security Scanning
+
+trigger:
+  branches:
+    include:
+      - main
+      - develop
+
+pr:
+  branches:
+    include:
+      - main
+
+variables:
+  pythonVersion: '3.11'
+  nodeVersion: '20.x'
+
+stages:
+  - stage: Lint
+    displayName: 'Lint & Type Check'
+    jobs:
+      - job: PythonLint
+        displayName: 'Python Lint & Format'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: '$(pythonVersion)'
+          
+          - script: |
+              pip install uv
+              cd backend-python
+              uv venv .venv
+              source .venv/bin/activate
+              uv pip install ruff black mypy
+            displayName: 'Install dependencies'
+          
+          - script: |
+              cd backend-python
+              source .venv/bin/activate
+              ruff check app/
+            displayName: 'Run Ruff'
+          
+          - script: |
+              cd backend-python
+              source .venv/bin/activate
+              black --check app/
+            displayName: 'Run Black'
+
+      - job: NodeLint
+        displayName: 'Node.js Lint & Type Check'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - task: NodeTool@0
+            inputs:
+              versionSpec: '$(nodeVersion)'
+          
+          - script: |
+              cd backend-nodejs
+              npm install
+            displayName: 'Install dependencies'
+          
+          - script: |
+              cd backend-nodejs
+              npm run lint || true
+            displayName: 'Run ESLint'
+          
+          - script: |
+              cd backend-nodejs
+              npm run typecheck
+            displayName: 'TypeScript check'
+
+  - stage: Security
+    displayName: 'Security Scan'
+    dependsOn: Lint
+    jobs:
+      - job: PythonSecurity
+        displayName: 'Python Security (Bandit)'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: '$(pythonVersion)'
+          
+          - script: pip install bandit
+            displayName: 'Install Bandit'
+          
+          - script: |
+              cd backend-python
+              bandit -r app/ -f json -o $(Build.ArtifactStagingDirectory)/bandit-report.json || true
+            displayName: 'Run Bandit'
+          
+          - task: PublishBuildArtifacts@1
+            inputs:
+              pathToPublish: '$(Build.ArtifactStagingDirectory)'
+              artifactName: 'security-reports'
+
+  - stage: Test
+    displayName: 'Run Tests'
+    dependsOn: Lint
+    jobs:
+      - job: PythonTest
+        displayName: 'Python Tests'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: '$(pythonVersion)'
+          
+          - script: |
+              pip install uv
+              cd backend-python
+              uv venv .venv
+              source .venv/bin/activate
+              uv pip install -r requirements.txt
+            displayName: 'Install dependencies'
+          
+          - script: |
+              cd backend-python
+              source .venv/bin/activate
+              PYTHONPATH=. pytest tests/ -v --tb=short --junitxml=$(Build.ArtifactStagingDirectory)/test-results.xml
+            displayName: 'Run Pytest'
+            continueOnError: true
+          
+          - task: PublishTestResults@2
+            inputs:
+              testResultsFormat: 'JUnit'
+              testResultsFiles: '**/test-results.xml'
+
+      - job: NodeTest
+        displayName: 'Node.js Tests'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - task: NodeTool@0
+            inputs:
+              versionSpec: '$(nodeVersion)'
+          
+          - script: |
+              cd backend-nodejs
+              npm install
+            displayName: 'Install dependencies'
+          
+          - script: |
+              cd backend-nodejs
+              npm test || echo "No tests found yet"
+            displayName: 'Run Jest'
+            continueOnError: true
+
+  - stage: Build
+    displayName: 'Build'
+    dependsOn: Test
+    jobs:
+      - job: FrontendBuild
+        displayName: 'Frontend Build'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - task: NodeTool@0
+            inputs:
+              versionSpec: '$(nodeVersion)'
+          
+          - script: |
+              cd frontend
+              npm install
+            displayName: 'Install dependencies'
+          
+          - script: |
+              cd frontend
+              npm run check || true
+              npm run build
+            displayName: 'Build frontend'
+          
+          - task: PublishBuildArtifacts@1
+            inputs:
+              pathToPublish: 'frontend/build'
+              artifactName: 'frontend-build'

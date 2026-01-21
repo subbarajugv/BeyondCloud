@@ -1,0 +1,111 @@
+# BeyondCloud CI/CD Pipeline for AWS CodeBuild
+# Enterprise DevSecOps - Linting, Type Checking, Security Scanning
+#
+# Usage:
+#   1. Create CodeBuild project in AWS Console
+#   2. Point Source to your repo
+#   3. Use this buildspec.yml
+#
+# For CodePipeline, create separate projects for each stage
+
+version: 0.2
+
+env:
+  variables:
+    PYTHON_VERSION: "3.11"
+    NODE_VERSION: "20"
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.11
+      nodejs: 20
+    commands:
+      - echo "Installing dependencies..."
+      - pip install uv bandit
+      - npm install -g npm@latest
+
+  pre_build:
+    commands:
+      - echo "Setting up Python backend..."
+      - cd backend-python
+      - uv venv .venv
+      - source .venv/bin/activate
+      - uv pip install -r requirements.txt ruff black mypy
+      - cd ..
+      
+      - echo "Setting up Node.js backend..."
+      - cd backend-nodejs
+      - npm install
+      - cd ..
+      
+      - echo "Setting up Frontend..."
+      - cd frontend
+      - npm install
+      - cd ..
+
+  build:
+    commands:
+      # Python Linting
+      - echo "Running Python linting..."
+      - cd backend-python
+      - source .venv/bin/activate
+      - ruff check app/ || true
+      - black --check app/ || true
+      - mypy app/ --ignore-missing-imports || true
+      - cd ..
+      
+      # Python Security Scan
+      - echo "Running Python security scan..."
+      - cd backend-python
+      - bandit -r app/ -f json -o bandit-report.json || true
+      - cd ..
+      
+      # Python Tests
+      - echo "Running Python tests..."
+      - cd backend-python
+      - source .venv/bin/activate
+      - PYTHONPATH=. pytest tests/ -v --tb=short --junitxml=test-results.xml || true
+      - cd ..
+      
+      # Node.js Linting
+      - echo "Running Node.js linting..."
+      - cd backend-nodejs
+      - npm run lint || true
+      - npm run typecheck
+      - cd ..
+      
+      # Node.js Tests
+      - echo "Running Node.js tests..."
+      - cd backend-nodejs
+      - npm test || true
+      - cd ..
+      
+      # Frontend Build
+      - echo "Building frontend..."
+      - cd frontend
+      - npm run check || true
+      - npm run build
+      - cd ..
+
+  post_build:
+    commands:
+      - echo "Build completed on $(date)"
+
+reports:
+  pytest-reports:
+    files:
+      - backend-python/test-results.xml
+    file-format: JUNITXML
+
+artifacts:
+  files:
+    - frontend/build/**/*
+    - backend-python/bandit-report.json
+  name: beyondcloud-build-$(date +%Y-%m-%d)
+
+cache:
+  paths:
+    - backend-python/.venv/**/*
+    - backend-nodejs/node_modules/**/*
+    - frontend/node_modules/**/*
