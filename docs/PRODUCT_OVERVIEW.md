@@ -105,3 +105,51 @@ Built-in counters for:
 - **Scalable**: Stateless backend design.
 - **Usage Tracking**: Built-in metering for billing integration.
 
+---
+
+## Enterprise Hardening (Implemented)
+
+### Security
+| Feature | Description |
+|---------|-------------|
+| **SecretManager** | Abstraction layer supporting `env`, HashiCorp Vault, and AWS Secrets Manager |
+| **CSP Hardening** | Strict Content-Security-Policy blocking `unsafe-inline`, whitelisted `connect-src` |
+| **SIEM Integration** | Structured audit logging to Splunk, Datadog, or generic webhooks |
+| **Security Headers** | `Referrer-Policy`, `Permissions-Policy`, and strict CSP enforcement |
+
+### Observability
+| Feature | Description |
+|---------|-------------|
+| **OpenTelemetry SDK** | Full OTel integration for Python (FastAPI) and Node.js (Express) |
+| **Auto-Instrumentation** | HTTP requests, database queries, and LLM calls traced automatically |
+| **OTLP Export** | Send traces to Jaeger, Honeycomb, Datadog, or any OTLP collector |
+| **Deep Health Checks** | `/health/live`, `/health/ready`, `/health/deep` with latency metrics |
+
+### Scalability
+| Feature | Description |
+|---------|-------------|
+| **Kubernetes Helm Chart** | Full chart in `k8s/` with Deployments, Services, Ingress |
+| **Bitnami Dependencies** | PostgreSQL and Redis as Helm subcharts |
+| **Health Probes** | Liveness and readiness probes configured for K8s |
+| **Ingress Routing** | Path-based routing to frontend and backends |
+
+### DevSecOps (CI/CD)
+| Platform | Config File |
+|----------|-------------|
+| GitHub Actions | `.github/workflows/ci.yml` |
+| GitLab CI/CD | `.gitlab-ci.yml` |
+| Azure DevOps | `azure-pipelines.yml` |
+| AWS CodeBuild | `buildspec.yml` |
+
+All pipelines include: Linting (Ruff, Black, ESLint), Type Checking (MyPy, TSC), Unit Tests (Pytest, Jest), Security Scanning (Bandit, Trivy).
+
+### Evaluation Framework
+| Component | Description |
+|-----------|-------------|
+| **Metric Interface** | Abstract base with `FaithfulnessMetric`, `RelevanceMetric`, `CoherenceMetric` |
+| **LLM-as-a-Judge** | Uses configured LLM provider for evaluation with customizable prompts |
+| **RAG Metrics** | Context Precision/Recall, Answer Similarity, RAGAS integration |
+| **Agent Metrics** | Tool Success, Task Completion, Step Efficiency, Plan Adherence |
+| **Arize Phoenix** | Optional LLM observability tracing with local UI |
+| **DeepEval Runner** | CI/CD-compatible evaluation with pytest assertions |
+

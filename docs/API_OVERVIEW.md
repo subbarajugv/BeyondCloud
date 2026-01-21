@@ -1,146 +1,167 @@
 # BeyondCloud API Overview
 
-Complete reference for all API endpoints.
+Complete reference for all API endpoints across both backend services.
 
 ## 📡 Architecture
 
 | Service | Port | Responsibility |
 |---------|------|----------------|
-| **Node.js** | 3000 | Auth, Conversations, Settings |
-| **Python** | 8001 | RAG, Agents, MCP, Analytics |
+| **Node.js** | 3000 | Auth, Conversations, Chat, Settings, Providers |
+| **Python** | 8001 | RAG, Agents, MCP, Usage Analytics, Health |
 
 ---
 
 ## Node.js Backend (Port 3000)
 
-### Auth
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/auth/register` | Register new user |
-| POST | `/api/auth/login` | Login, get JWT |
-| POST | `/api/auth/refresh` | Refresh token |
-| GET | `/api/auth/me` | Get current user |
+### Authentication `/api/auth`
 
-### Conversations
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/conversations` | List conversations |
-| POST | `/api/conversations` | Create conversation |
-| GET | `/api/conversations/:id` | Get conversation |
-| DELETE | `/api/conversations/:id` | Delete conversation |
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | `/register` | ❌ | Create new user account |
+| POST | `/login` | ❌ | Login, returns JWT + refresh token |
+| POST | `/logout` | ✅ | Logout (server-side logging) |
+| GET | `/me` | ✅ | Get current user profile |
+| PUT | `/profile` | ✅ | Update display name |
+| POST | `/refresh` | ❌ | Rotate refresh token, get new JWT |
+| POST | `/forgot-password` | ❌ | Request password reset email |
+| POST | `/reset-password` | ❌ | Reset password with token |
 
-### Messages
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/conversations/:id/messages` | List messages |
-| POST | `/api/conversations/:id/messages` | Create message |
+### Chat `/api/chat`
 
-### Chat
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/chat/completions` | LLM completion |
-| POST | `/api/chat/completions/stream` | Streaming completion |
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | `/completions` | Optional | LLM chat (supports SSE streaming) |
+
+### Conversations `/api/conversations`
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/` | ✅ | List all user conversations |
+| POST | `/` | ✅ | Create new conversation |
+| GET | `/:id` | ✅ | Get conversation with messages |
+| PUT | `/:id` | ✅ | Update name or current_node |
+| DELETE | `/:id` | ✅ | Delete conversation + messages |
+| POST | `/:id/messages` | ✅ | Add message to conversation |
+| PUT | `/:convId/messages/:msgId` | ✅ | Update message content |
+
+### Providers `/api/providers`
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/` | ❌ | List configured LLM providers |
+| POST | `/test` | ❌ | Test provider connection |
+| GET | `/models` | ❌ | Get models for provider |
+
+### Settings `/api/settings`
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/` | ✅ | Get user settings |
+| PUT | `/` | ✅ | Update settings (merge) |
 
 ---
 
 ## Python Backend (Port 8001)
 
-### Health
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/health` | Health check |
-| GET | `/models` | List LLM models |
+### Health Checks `/health`
 
-### RAG - Sources
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/rag/sources` | List sources |
-| POST | `/rag/ingest` | Ingest text |
-| POST | `/rag/ingest/file` | Ingest file |
-| DELETE | `/rag/sources/:id` | Delete source |
-| PUT | `/rag/sources/:id/visibility` | Update visibility |
-| GET | `/rag/sources/:id/download` | Download file |
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/live` | ❌ | Kubernetes liveness probe |
+| GET | `/ready` | ❌ | Kubernetes readiness probe (DB check) |
+| GET | `/deep` | ❌ | Deep health: DB + Redis + LLM with latency |
 
-### RAG - Query
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/rag/retrieve` | Vector search |
-| POST | `/rag/query` | RAG + generation |
+### RAG - Sources `/rag`
 
-### RAG - Collections
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/rag/collections` | List collections |
-| POST | `/rag/collections` | Create collection |
-| GET | `/rag/collections/:id` | Get collection |
-| PUT | `/rag/collections/:id` | Update collection |
-| DELETE | `/rag/collections/:id` | Delete collection |
-| POST | `/rag/collections/:id/move` | Move items |
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/sources` | ✅ | List ingested sources |
+| POST | `/ingest` | ✅ | Ingest text content |
+| POST | `/ingest/file` | ✅ | Ingest file (PDF, TXT, etc.) |
+| DELETE | `/sources/:id` | ✅ | Delete source |
+| PUT | `/sources/:id/visibility` | ✅ | Update source visibility |
+| GET | `/sources/:id/download` | ✅ | Download original file |
 
-### RAG - Settings
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/rag/settings` | Get settings |
-| PUT | `/rag/settings` | Update settings |
+### RAG - Query `/rag`
 
-### Agent
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/agent/set-sandbox` | Configure sandbox path |
-| POST | `/api/agent/set-mode` | Set approval mode |
-| GET | `/api/agent/status` | Get agent status |
-| GET | `/api/agent/tools` | List available tools |
-| POST | `/api/agent/execute` | Execute tool |
-| POST | `/api/agent/approve/:id` | Approve pending call |
-| POST | `/api/agent/reject/:id` | Reject pending call |
-| GET | `/api/agent/pending` | List pending calls |
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | `/retrieve` | ✅ | Vector similarity search |
+| POST | `/query` | ✅ | RAG query with LLM generation |
 
-### MCP (Model Context Protocol)
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/mcp/servers` | List MCP servers |
-| POST | `/api/mcp/servers` | Add MCP server |
-| DELETE | `/api/mcp/servers/:id` | Remove MCP server |
-| GET | `/api/mcp/tools` | List MCP tools |
-| POST | `/api/mcp/tools/call` | Execute MCP tool |
-| GET | `/api/mcp/tools/openai-format` | Get tools in OpenAI format |
+### RAG - Collections `/rag/collections`
 
-### LLM Providers
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/providers` | List providers |
-| POST | `/api/providers/test` | Test provider |
-| GET | `/api/providers/models` | List models |
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/` | ✅ | List collections |
+| POST | `/` | ✅ | Create collection |
+| GET | `/:id` | ✅ | Get collection details |
+| PUT | `/:id` | ✅ | Update collection |
+| DELETE | `/:id` | ✅ | Delete collection |
+| POST | `/:id/move` | ✅ | Move sources between collections |
 
-### Usage Analytics
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/usage/stats` | Get usage statistics |
-| GET | `/api/usage/daily` | Get daily breakdown |
+### RAG - Settings `/rag/settings`
 
----
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/` | ✅ | Get RAG settings |
+| PUT | `/` | ✅ | Update RAG settings |
 
-## MCP Tools (Built-in)
+### Agent `/api/agent`
 
-11 tools available via `/api/mcp/tools`:
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | `/set-sandbox` | ✅ | Configure sandbox directory |
+| POST | `/set-mode` | ✅ | Set approval mode (auto/manual) |
+| GET | `/status` | ✅ | Get agent status + config |
+| GET | `/tools` | ✅ | List available tools |
+| POST | `/execute` | ✅ | Execute a tool |
+| POST | `/approve/:id` | ✅ | Approve pending tool call |
+| POST | `/reject/:id` | ✅ | Reject pending tool call |
+| GET | `/pending` | ✅ | List pending approvals |
+| POST | `/run` | ✅ | Run full agent loop |
 
-| Tool | Description |
-|------|-------------|
-| `read_file` | Read file contents |
-| `write_file` | Write to file |
-| `list_dir` | List directory |
-| `search_files` | Search by pattern |
-| `run_command` | Execute shell command |
-| `python_executor` | Run Python code |
-| `web_search` | DuckDuckGo search |
-| `screenshot` | Capture webpage |
-| `database_query` | Read-only SQL |
-| `think` | Record reasoning |
-| `plan_task` | Create execution plan |
+### MCP (Model Context Protocol) `/api/mcp`
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/servers` | ✅ | List MCP servers |
+| POST | `/servers` | ✅ | Add MCP server |
+| DELETE | `/servers/:id` | ✅ | Remove MCP server |
+| GET | `/tools` | ✅ | List all MCP tools |
+| POST | `/tools/call` | ✅ | Execute MCP tool |
+| GET | `/tools/openai-format` | ✅ | Get tools as OpenAI schema |
+
+### Usage Analytics `/api/usage`
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/stats` | ✅ | Usage statistics summary |
+| GET | `/daily` | ✅ | Daily breakdown |
 
 ---
 
-## RBAC
+## Built-in MCP Tools
+
+11 tools available when agent is enabled:
+
+| Tool | Category | Description |
+|------|----------|-------------|
+| `read_file` | Filesystem | Read file contents |
+| `write_file` | Filesystem | Write to file |
+| `list_dir` | Filesystem | List directory contents |
+| `search_files` | Filesystem | Glob pattern search |
+| `run_command` | Shell | Execute shell command |
+| `python_executor` | Code | Run Python code |
+| `web_search` | Web | DuckDuckGo search |
+| `screenshot` | Web | Capture webpage screenshot |
+| `database_query` | Data | Read-only SQL query |
+| `think` | Reasoning | Record reasoning step |
+| `plan_task` | Planning | Create execution plan |
+
+---
+
+## RBAC Permissions
 
 | Role | RAG | Agent | MCP | Admin |
 |------|-----|-------|-----|-------|
@@ -151,6 +172,27 @@ Complete reference for all API endpoints.
 
 ---
 
-## Related Docs- [CONTRACT.md](CONTRACT.md) - Core API protocol
-- [RAG_CONTRACT.md](RAG_CONTRACT.md) - RAG pipeline
-- [AGENT_CONTRACT.md](AGENT_CONTRACT.md) - Agent flow
+## Error Response Format
+
+All endpoints return errors in consistent format:
+
+```json
+{
+  "error": {
+    "code": "ERROR_CODE",
+    "message": "Human readable message",
+    "details": {}
+  }
+}
+```
+
+Common error codes: `VALIDATION_ERROR`, `UNAUTHORIZED`, `FORBIDDEN`, `NOT_FOUND`, `SERVER_ERROR`, `PROVIDER_ERROR`, `LLM_ERROR`
+
+---
+
+## Related Documentation
+
+- [CONTRACT.md](CONTRACT.md) - Core API protocol & guarantees
+- [RAG_CONTRACT.md](RAG_CONTRACT.md) - RAG pipeline details
+- [AGENT_CONTRACT.md](AGENT_CONTRACT.md) - Agent workflow
+- [RBAC_CONTRACT.md](RBAC_CONTRACT.md) - Role-based access control
