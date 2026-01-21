@@ -69,16 +69,47 @@ This document outlines the strategic initiatives required to transform BeyondClo
     *   Add spans for all delete operations
     *   Log who deleted what and when
 
-## 📊 6. Full Observability
-*   [ ] **OpenTelemetry Migration**
-    *   Replace PostgreSQL spans with OTel SDK
-    *   Export to Jaeger/Tempo/Grafana
-*   [ ] **Metrics Dashboard**
-    *   RAG query latency, retrieval precision
+## 📊 6. Extensible Dashboards & Observability
+
+### Core Dashboards (Built-in)
+*   [ ] **Admin Dashboard**
+    *   User management (CRUD, roles, quotas)
+    *   Guardrail violation logs
+    *   Document/collection management
+*   [ ] **Usage Analytics Dashboard**
+    *   RAG queries, agent tool calls, LLM requests
     *   Token usage, embedding costs
+    *   Daily/weekly/monthly breakdowns
+*   [ ] **User Dashboard**
+    *   My Usage, My Collections, My Agents
+    *   Settings, Support (raise/track tickets)
+
+### Custom Dashboard Architecture (Extensibility)
+*   [ ] **Widget-Based System**
+    *   Dashboard = array of draggable widgets (react-grid-layout)
+    *   Persist layout per user/tenant
+    *   Built-in widgets: `usage-counter`, `line-chart`, `bar-chart`, `table`
+*   [ ] **Widget Registry**
+    *   Register custom widgets via plugin API
+    *   Each widget defines: `dataSource`, `config`, `render()`
+*   [ ] **Query Builder** (Power Users)
+    *   Define custom metrics via SQL or API queries
+    *   Parameterized queries: `:user_id`, `:date_range`
+    *   Save and share queries
+*   [ ] **Dashboard API**
+    *   `GET/POST/PUT /api/dashboards` - CRUD for dashboard configs
+    *   `GET /api/dashboards/:id/data` - Fetch all widget data
+    *   `POST /api/dashboards/:id/share` - Share with team/roles
+
+### Premium Features
+*   [ ] **Scheduled Reports**
+    *   Email dashboard PDF weekly/monthly
+*   [ ] **Embedding**
+    *   `<iframe>` embed with signed URLs for external portals
 *   [ ] **Audit Trail UI**
-    *   Admin view of all traces
-    *   Filter by user, operation, time
+    *   Admin view of all traces, filter by user/operation/time
+
+
 
 ## 🛡️ 7. Enterprise Hardening (Governance)
 *   [ ] **Intelligent Model Routing**
