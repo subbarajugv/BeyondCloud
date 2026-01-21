@@ -211,6 +211,10 @@ app.include_router(usage.router, prefix="/api")
 from app.routers import health
 app.include_router(health.router)
 
+# Admin routes (Dashboard)
+from app.routers import admin
+app.include_router(admin.router)
+
 # Models endpoint (convenience alias)
 @app.get("/api/models")
 async def get_models(provider: str = "llama.cpp"):

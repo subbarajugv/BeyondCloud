@@ -186,5 +186,38 @@ async def init_database():
             CREATE INDEX IF NOT EXISTS idx_usage_stats_user_period ON usage_stats(user_id, period_start)
         """))
         
-        print("✅ Database initialized with pgvector, RAG collections, usage stats, and storage tables")
+        # Create support tickets table
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS support_tickets (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                user_id UUID NOT NULL,
+                subject VARCHAR(255) NOT NULL,
+                description TEXT NOT NULL,
+                status VARCHAR(20) DEFAULT 'open',
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                resolved_at TIMESTAMPTZ
+            )
+        """))
+        await conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_tickets_user ON support_tickets(user_id)
+        """))
+        await conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_tickets_status ON support_tickets(status)
+        """))
+
+        # Create guardrail violations table
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS guardrail_violations (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                user_id UUID NOT NULL,
+                event_type VARCHAR(50) NOT NULL,
+                details JSONB DEFAULT '{}',
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """))
+        await conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_violations_user ON guardrail_violations(user_id)
+        """))
+        
+        print("✅ Database initialized with pgvector, RAG collections, usage stats, storage, and dashboard tables")
 
