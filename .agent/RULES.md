@@ -1,9 +1,19 @@
 # BeyondCloud Development Rules
 
 ## Architecture
-- **Dual Backend**: Python (FastAPI) + Node.js (Express) - BOTH must be updated for shared features
-- **Frontend**: SvelteKit with Svelte 5 runes mode
+
+| Service | Tech Stack | Port | Responsibility |
+|---------|------------|------|----------------|
+| **Python Backend** | FastAPI | 8001 | RAG, Agents, MCP, Usage Analytics, Health |
+| **Node.js Backend** | Express | 3000 | Auth, Conversations, Chat, Settings, Providers |
+| **Agent Daemon** | Python | 8002 | Long-running agent execution, tool sandboxing |
+| **Frontend** | SvelteKit (Svelte 5) | 5173 | UI, chat interface, dashboards |
+
 - **Database**: PostgreSQL with pgvector extension
+- **Cache**: Redis (for agent state, sessions)
+
+> **Important**: Features shared between backends (e.g., secrets, OTel) must be implemented in BOTH Python AND Node.js.
+
 
 ## Code Standards
 
