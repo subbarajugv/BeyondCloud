@@ -24,6 +24,8 @@
 	import { modelName as serverModelName } from '$lib/stores/server.svelte';
 	import { copyToClipboard } from '$lib/utils/copy';
 	import type { ApiChatCompletionToolCall } from '$lib/types/api';
+	import type { Citation } from '$lib/services/ragApi';
+	import CitationBar from './CitationBar.svelte';
 
 	interface Props {
 		class?: string;
@@ -56,6 +58,7 @@
 		textareaElement?: HTMLTextAreaElement;
 		thinkingContent: string | null;
 		toolCallContent: ApiChatCompletionToolCall[] | string | null;
+		citations?: Citation[];
 	}
 
 	let {
@@ -83,7 +86,8 @@
 		siblingInfo = null,
 		textareaElement = $bindable(),
 		thinkingContent,
-		toolCallContent = null
+		toolCallContent = null,
+		citations = []
 	}: Props = $props();
 
 	const toolCalls = $derived(
@@ -240,6 +244,11 @@
 		<div class="text-sm whitespace-pre-wrap">
 			{messageContent}
 		</div>
+	{/if}
+
+	<!-- RAG Citations -->
+	{#if citations && citations.length > 0 && !isEditing}
+		<CitationBar {citations} />
 	{/if}
 
 	<div class="info my-6 grid gap-4">

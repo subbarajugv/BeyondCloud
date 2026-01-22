@@ -1,7 +1,7 @@
 /**
  * RAG Store - State management for document ingestion and retrieval
  */
-import { ragApi, type RAGSource, type RAGChunk, type QueryResponse, type VisibilityType, type RAGCollection, type CollectionCreateRequest, type CollectionVisibility } from '$lib/services/ragApi';
+import { ragApi, type RAGSource, type RAGChunk, type QueryResponse, type VisibilityType, type RAGCollection, type CollectionCreateRequest, type CollectionVisibility, type Citation } from '$lib/services/ragApi';
 import { browser } from '$app/environment';
 import { toast } from 'svelte-sonner';
 
@@ -18,6 +18,14 @@ class RAGStore {
 
     // RAG context injection toggle
     ragEnabled = $state(true);
+
+    // Advanced RAG Settings (Local state)
+    advancedMode = $state(false);
+    contextBudget = $state(4096);
+    hybridRatio = $state(0.7);
+
+    // Last retrieved chunks for citation display
+    lastRetrievedChunks = $state<RAGChunk[]>([]);
 
     // Computed: Separate private and shared sources
     get privateSources(): RAGSource[] {
@@ -427,36 +435,87 @@ class RAGStore {
         }
 
         try {
-            // Use the existing retrieve method with selected sources
-            const chunks = await ragApi.retrieve(query, 5, 0.3);
+            let chunks: RAGChunk[] = [];
+            let contextString = "";
+
+            if (this.advancedMode) {
+                // Advanced Pipeline
+                const result = await ragApi.advancedRetrieve(
+                    query,
+                    this.contextBudget,
+                    this.hybridRatio,
+                    this.selectedSourceIds.length > 0 ? this.selectedSourceIds : null
+                );
+                chunks = result.chunks;
+                // For advanced, the backend assembles the context
+                contextString = result.context;
+            } else {
+                // Standard Retrieval
+                chunks = await ragApi.retrieve(query, 5, 0.3);
+                if (!chunks || chunks.length === 0) {
+                    this.lastRetrievedChunks = [];
+                    return null;
+                }
+
+                // Build context string locally
+                const contextParts: string[] = [
+                    '=== RELEVANT KNOWLEDGE ===',
+                    '',
+                ];
+
+                for (const chunk of chunks) {
+                    const source = this.getSource(chunk.source_id);
+                    const sourceName = source?.name || 'Unknown Source';
+                    contextParts.push(`**Source: ${sourceName}**`);
+                    contextParts.push(chunk.content);
+                    contextParts.push('');
+                }
+
+                contextParts.push('=== END OF KNOWLEDGE ===');
+                contextParts.push('');
+                contextParts.push('Use the above knowledge to help answer the user\'s question. If the knowledge is relevant, cite the source names in your response.');
+
+                contextString = contextParts.join('\n');
+            }
 
             if (!chunks || chunks.length === 0) {
+                this.lastRetrievedChunks = [];
                 return null;
             }
 
-            // Build context string
-            const contextParts: string[] = [
-                '=== RELEVANT KNOWLEDGE ===',
-                '',
-            ];
+            // Store chunks for citation display
+            this.lastRetrievedChunks = chunks;
 
-            for (const chunk of chunks) {
-                const source = this.getSource(chunk.source_id);
-                const sourceName = source?.name || 'Unknown Source';
-                contextParts.push(`**Source: ${sourceName}**`);
-                contextParts.push(chunk.content);
-                contextParts.push('');
-            }
-
-            contextParts.push('=== END OF KNOWLEDGE ===');
-            contextParts.push('');
-            contextParts.push('Use the above knowledge to help answer the user\'s question. If the knowledge is relevant, cite the source names in your response.');
-
-            return contextParts.join('\n');
+            return contextString;
         } catch (e) {
             console.error('Failed to build RAG context:', e);
+            this.lastRetrievedChunks = [];
             return null;
         }
+    }
+
+    /**
+     * Get formatted citations for display in chat messages
+     */
+    getCitationsForDisplay(): Citation[] {
+        return this.lastRetrievedChunks.map(chunk => {
+            const source = this.getSource(chunk.source_id);
+            return {
+                source_id: chunk.source_id,
+                source_name: source?.name || 'Unknown Source',
+                score: chunk.score,
+                content_preview: chunk.content.length > 200
+                    ? chunk.content.slice(0, 200) + '...'
+                    : chunk.content
+            };
+        });
+    }
+
+    /**
+     * Clear last citations (call after message is saved)
+     */
+    clearLastCitations(): void {
+        this.lastRetrievedChunks = [];
     }
 }
 

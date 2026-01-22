@@ -3,6 +3,7 @@
 	import { copyToClipboard } from '$lib/utils/copy';
 	import { isIMEComposing } from '$lib/utils/is-ime-composing';
 	import type { ApiChatCompletionToolCall } from '$lib/types/api';
+	import type { Citation } from '$lib/services/ragApi';
 	import ChatMessageAssistant from './ChatMessageAssistant.svelte';
 	import ChatMessageUser from './ChatMessageUser.svelte';
 
@@ -80,6 +81,18 @@
 			return trimmedToolCalls;
 		}
 		return null;
+	});
+
+	// Parse RAG citations from message
+	let citations = $derived.by((): Citation[] => {
+		if (message.role === 'assistant' && message.ragCitations) {
+			try {
+				return JSON.parse(message.ragCitations) as Citation[];
+			} catch {
+				return [];
+			}
+		}
+		return [];
 	});
 
 	function handleCancelEdit() {
@@ -218,5 +231,6 @@
 		{siblingInfo}
 		{thinkingContent}
 		{toolCallContent}
+		{citations}
 	/>
 {/if}

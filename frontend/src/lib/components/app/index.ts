@@ -47,6 +47,7 @@ export { default as DialogConversationSelection } from './dialogs/DialogConversa
 export { default as DialogConversationTitleUpdate } from './dialogs/DialogConversationTitleUpdate.svelte';
 export { default as DialogEmptyFileAlert } from './dialogs/DialogEmptyFileAlert.svelte';
 export { default as DialogUsageAnalytics } from './dialogs/DialogUsageAnalytics.svelte';
+export { default as DialogDataPrivacy } from './dialogs/DialogDataPrivacy.svelte';
 
 // Miscellanous
 

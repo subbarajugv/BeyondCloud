@@ -103,7 +103,16 @@ class RetrieveRequest(BaseModel):
     bm25_weight: float = Field(default=0.3, ge=0, le=1, description="BM25 weight in hybrid search")
 
 
-class VisibilityUpdate(BaseModel):
-    """Request to update source visibility (admin only)"""
-    visibility: VisibilityType
+class AdvancedRetrieveRequest(BaseModel):
+    """Request for advanced hybrid retrieval pipeline"""
+    query: str
+    context_window: int = 4096
+    hybrid_ratio: float = Field(default=0.7, ge=0, le=1)
+    source_ids: Optional[List[UUID]] = None
+
+class AdvancedRetrieveResponse(BaseModel):
+    """Response from advanced retrieval"""
+    context: str
+    chunks: List[Dict[str, Any]]
+    tier_breakdown: Dict[str, int]
 

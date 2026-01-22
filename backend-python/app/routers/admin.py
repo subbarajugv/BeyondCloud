@@ -285,3 +285,143 @@ async def get_my_tickets(
         )
         for row in result.fetchall()
     ]
+
+
+# ========== GDPR Endpoints ==========
+
+from fastapi.responses import Response
+from app.services.gdpr_service import delete_user_data, export_user_data
+
+
+@router.delete("/users/{user_id}/data")
+async def gdpr_delete_user_data(
+    user_id: str,
+    db: AsyncSession = Depends(get_db),
+    admin: UserWithRole = Depends(require_min_role("admin")),
+):
+    """
+    GDPR Right to Erasure - Delete all user data.
+    
+    Permanently deletes:
+    - RAG sources and chunks
+    - Collections
+    - Usage statistics
+    - Support tickets
+    - Traces
+    - Guardrail violations
+    - Settings
+    
+    Note: Does NOT delete the user account itself (handle via separate endpoint).
+    """
+    # Verify user exists
+    result = await db.execute(
+        text("SELECT id FROM users WHERE id = :user_id"),
+        {"user_id": user_id}
+    )
+    if not result.fetchone():
+        raise HTTPException(404, "User not found")
+    
+    # Delete all user data
+    deletion_result = await delete_user_data(db, user_id)
+    
+    return {
+        "message": "User data deleted successfully",
+        **deletion_result
+    }
+
+
+@router.get("/users/{user_id}/export")
+async def gdpr_export_user_data(
+    user_id: str,
+    db: AsyncSession = Depends(get_db),
+    admin: UserWithRole = Depends(require_min_role("admin")),
+):
+    """
+    GDPR Right to Portability - Export all user data as ZIP.
+    
+    Exports:
+    - User profile
+    - RAG sources and chunks
+    - Collections
+    - Usage statistics
+    - Support tickets
+    - Settings
+    
+    Returns: ZIP file download
+    """
+    # Verify user exists
+    result = await db.execute(
+        text("SELECT id, email FROM users WHERE id = :user_id"),
+        {"user_id": user_id}
+    )
+    user = result.fetchone()
+    if not user:
+        raise HTTPException(404, "User not found")
+    
+    # Generate export
+    zip_bytes = await export_user_data(db, user_id)
+    
+    # Return as downloadable ZIP
+    filename = f"beyondcloud_export_{user.email}_{user_id[:8]}.zip"
+    
+    return Response(
+        content=zip_bytes,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"'
+        }
+    )
+
+
+@router.get("/my-data/export")
+async def gdpr_export_own_data(
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+):
+    """
+    GDPR Right to Portability - Export your own data as ZIP.
+    
+    Any authenticated user can export their own data.
+    """
+    # Generate export
+    zip_bytes = await export_user_data(db, user_id)
+    
+    # Return as downloadable ZIP
+    filename = f"beyondcloud_export_{user_id[:8]}.zip"
+    
+    return Response(
+        content=zip_bytes,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"'
+        }
+    )
+
+
+@router.delete("/my-data")
+async def gdpr_delete_own_data(
+    confirm: bool = False,
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+):
+    """
+    GDPR Right to Erasure - Delete your own data.
+    
+    Any authenticated user can delete their own data.
+    Requires confirm=true query parameter.
+    
+    Note: Does NOT delete your account, only your data.
+    """
+    if not confirm:
+        raise HTTPException(
+            400, 
+            "Must confirm deletion by passing confirm=true. This action is irreversible."
+        )
+    
+    # Delete all user data
+    deletion_result = await delete_user_data(db, user_id)
+    
+    return {
+        "message": "Your data has been deleted successfully",
+        **deletion_result
+    }

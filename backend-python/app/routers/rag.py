@@ -10,10 +10,11 @@ from app.database import get_db
 from app.schemas.rag import (
     SourceResponse, IngestRequest, IngestResponse,
     QueryRequest, QueryResponse, RetrieveRequest, ChunkResponse, Citation,
-    VisibilityUpdate
+    VisibilityUpdate, AdvancedRetrieveRequest, AdvancedRetrieveResponse
 )
 from app.services.rag_service import rag_service
 from app.services.answer_service import answer_service
+from app.services.advanced_rag_service import advanced_rag_service
 from app.services.rag_guardrails import validate_query, validate_response, sanitize_query
 from app.tracing import export_spans_to_db
 from app.auth import get_current_user_id
@@ -181,6 +182,38 @@ async def retrieve(
         )
         for c in chunks
     ]
+
+
+@router.post("/advanced-retrieve", response_model=AdvancedRetrieveResponse)
+async def advanced_retrieve(
+    request: AdvancedRetrieveRequest,
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+):
+    """
+    Advanced Retrieval Pipleine:
+    1. Retrieval (Broad)
+    2. Cross-Encoder Reranking
+    3. Hybrid Partitioning (Verbatim + Summarized)
+    4. Context Assembly
+    """
+    result = await advanced_rag_service.retrieve_advanced(
+        db=db,
+        user_id=user_id,
+        query=request.query,
+        context_window=request.context_window,
+        hybrid_ratio=request.hybrid_ratio,
+        source_ids=[str(s) for s in request.source_ids] if request.source_ids else None,
+    )
+    
+    await export_spans_to_db(db)
+    
+    return AdvancedRetrieveResponse(
+        context=result["context"],
+        chunks=result["chunks"],
+        tier_breakdown=result.get("tier_breakdown", {}),
+    )
+
 
 
 @router.post("/query", response_model=QueryResponse)

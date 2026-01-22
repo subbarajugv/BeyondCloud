@@ -45,9 +45,9 @@
 	let titleUpdateNewTitle = $state('');
 	let titleUpdateResolve: ((value: boolean) => void) | null = null;
 	let showUserMenu = $state(false);
-	let showAnalyticsDialog = $state(false);
+	let showDataPrivacyDialog = $state(false);
 
-	import { DialogUsageAnalytics } from '$lib/components/app';
+	import { DialogDataPrivacy } from '$lib/components/app';
 
 	// Logout handler
 	function handleLogout() {
@@ -140,7 +140,8 @@
 	});
 </script>
 
-<DialogUsageAnalytics bind:open={showAnalyticsDialog} />
+
+<DialogDataPrivacy bind:open={showDataPrivacyDialog} />
 
 <DialogConversationTitleUpdate
 	bind:open={titleUpdateDialogOpen}
@@ -164,8 +165,8 @@
 		/>
 
 		<Sidebar.Inset class="flex flex-1 flex-col overflow-hidden">
-			<!-- User Menu - positioned to the left of settings button -->
-			<div class="fixed right-16 top-4 z-[51]">
+			<!-- User Menu -->
+			<div class="fixed right-4 top-4 z-[1000]">
 				<button
 					onclick={() => showUserMenu = !showUserMenu}
 					class="flex items-center gap-2 rounded-lg bg-slate-800/80 px-3 py-2 text-sm text-white shadow-lg backdrop-blur-sm transition-colors hover:bg-slate-700"
@@ -178,23 +179,11 @@
 				</button>
 
 				{#if showUserMenu}
-					<div class="absolute right-0 mt-2 w-48 rounded-lg border border-slate-700 bg-slate-800 py-2 shadow-xl">
+					<div class="absolute right-0 z-[100] mt-2 w-48 rounded-lg border border-slate-700 bg-slate-800 py-2 shadow-xl">
 						<div class="border-b border-slate-700 px-4 py-2">
 							<p class="text-sm font-medium text-white">{authStore.user?.displayName || 'User'}</p>
 							<p class="text-xs text-slate-400">{authStore.user?.email}</p>
 						</div>
-						<button
-							onclick={() => { showAnalyticsDialog = true; showUserMenu = false; }}
-							class="flex w-full items-center gap-2 px-4 py-2 text-sm text-slate-300 transition-colors hover:bg-slate-700"
-						>
-							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-								<path d="M3 3v18h18"></path>
-								<path d="M18 17V9"></path>
-								<path d="M13 17V5"></path>
-								<path d="M8 17v-3"></path>
-							</svg>
-							Usage Analytics
-						</button>
 						<button
 							onclick={() => { goto('/dashboard'); showUserMenu = false; }}
 							class="flex w-full items-center gap-2 px-4 py-2 text-sm text-slate-300 transition-colors hover:bg-slate-700"
@@ -205,6 +194,15 @@
 								<line x1="9" y1="21" x2="9" y2="9"></line>
 							</svg>
 							Dashboard
+						</button>
+						<button
+							onclick={() => { showDataPrivacyDialog = true; showUserMenu = false; }}
+							class="flex w-full items-center gap-2 px-4 py-2 text-sm text-slate-300 transition-colors hover:bg-slate-700"
+						>
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+								<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+							</svg>
+							Data & Privacy
 						</button>
 						<button
 							onclick={handleLogout}

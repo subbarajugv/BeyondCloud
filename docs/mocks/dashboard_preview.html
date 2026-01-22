@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BeyondCloud - Magic UX Preview</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* Palette: Deep Space */
+            --bg-deep: #050510;
+            --bg-panel: rgba(20, 20, 35, 0.6);
+            --primary: #8b5cf6; /* Violet */
+            --primary-glow: #8b5cf6;
+            --accent: #06b6d4; /* Cyan */
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --border: rgba(255, 255, 255, 0.08);
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-deep);
+            background-image: 
+                radial-gradient(circle at 15% 50%, rgba(139, 92, 246, 0.15), transparent 25%),
+                radial-gradient(circle at 85% 30%, rgba(6, 182, 212, 0.15), transparent 25%);
+            color: var(--text-main);
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* Glassmorphism Utility */
+        .glass {
+            background: var(--bg-panel);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 260px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            padding: 1.5rem;
+            border-right: 1px solid var(--border);
+            z-index: 10;
+        }
+
+        .logo {
+            font-size: 1.25rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 2.5rem;
+            background: linear-gradient(to right, #fff, #94a3b8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem;
+            color: var(--text-muted);
+            text-decoration: none;
+            border-radius: 0.75rem;
+            margin-bottom: 0.5rem;
+            transition: all 0.2s ease;
+            font-size: 0.95rem;
+        }
+
+        .nav-item:hover, .nav-item.active {
+            background: rgba(139, 92, 246, 0.1);
+            color: #fff;
+            border: 1px solid rgba(139, 92, 246, 0.2);
+        }
+
+        .nav-item.active {
+            box-shadow: 0 0 15px rgba(139, 92, 246, 0.15);
+        }
+
+        /* Main Content */
+        .main {
+            flex: 1;
+            padding: 2.5rem;
+            overflow-y: auto;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2.5rem;
+        }
+
+        h1 {
+            font-size: 1.75rem;
+            font-weight: 600;
+            margin: 0;
+            letter-spacing: -0.025em;
+        }
+
+        .user-pill {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.5rem 0.75rem 0.5rem 0.5rem;
+            border-radius: 99px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        .user-pill:hover {
+            background: rgba(255,255,255,0.05);
+        }
+
+        .avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+        }
+
+        /* Stats Grid */
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1.5rem;
+            margin-bottom: 2.5rem;
+        }
+
+        .card {
+            padding: 1.5rem;
+            border-radius: 1.25rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 40px -10px rgba(0,0,0,0.5);
+            border-color: rgba(139, 92, 246, 0.3);
+        }
+
+        .card-label {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .card-value {
+            font-size: 2rem;
+            font-weight: 700;
+            background: linear-gradient(to bottom, #fff, #cbd5e1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .trend {
+            font-size: 0.75rem;
+            color: #4ade80; /* Green */
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        /* Chart Section */
+        .chart-section {
+            border-radius: 1.5rem;
+            padding: 2rem;
+            height: 400px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        /* Fake Chart Visualization */
+        .chart-bars {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            height: 250px;
+            margin-top: 2rem;
+            gap: 1.5rem;
+        }
+        
+        .bar-group {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            gap: 4px;
+        }
+        
+        .bar {
+            width: 100%;
+            border-radius: 4px;
+            opacity: 0.8;
+            position: relative;
+        }
+        
+        .bar.rag { background: var(--primary); box-shadow: 0 0 10px rgba(139, 92, 246, 0.3); }
+        .bar.llm { background: var(--accent); box-shadow: 0 0 10px rgba(6, 182, 212, 0.3); }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), #7c3aed);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4);
+            transition: all 0.2s;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(139, 92, 246, 0.6);
+        }
+
+    </style>
+</head>
+<body>
+
+    <!-- Sidebar -->
+    <nav class="sidebar glass">
+        <div class="logo">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+            </svg>
+            BeyondCloud
+        </div>
+        
+        <a href="#" class="nav-item">Chat</a>
+        <a href="#" class="nav-item">Agents</a>
+        <a href="#" class="nav-item">Knowledge Base</a>
+        <a href="#" class="nav-item active">Dashboard</a>
+        <a href="#" class="nav-item">Settings</a>
+    </nav>
+
+    <!-- Main -->
+    <main class="main">
+        <header class="header">
+            <div>
+                <h1>Overview</h1>
+                <p style="color: var(--text-muted); margin-top: 0.5rem; font-size: 0.9rem;">Welcome back, Admin</p>
+            </div>
+            
+            <div class="user-pill glass">
+                <div class="avatar"></div>
+                <span style="font-weight: 500; font-size: 0.9rem;">subba@example.com</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+            </div>
+        </header>
+
+        <!-- Stats -->
+        <div class="grid">
+            <div class="card glass">
+                <span class="card-label">Total RAG Queries</span>
+                <span class="card-value">12.5k</span>
+                <span class="trend">▲ 12% vs last week</span>
+            </div>
+            <div class="card glass">
+                <span class="card-label">Active Agents</span>
+                <span class="card-value">8</span>
+                <span class="trend" style="color: var(--text-muted)">• Stable</span>
+            </div>
+            <div class="card glass">
+                <span class="card-label">LLM Tokens</span>
+                <span class="card-value">1.2M</span>
+                <span class="trend">▲ 5% vs last week</span>
+            </div>
+            <div class="card glass">
+                <span class="card-label">Est. Cost</span>
+                <span class="card-value">$4.20</span>
+                <span class="trend">▼ 2% vs last week</span>
+            </div>
+        </div>
+
+        <!-- Chart Container -->
+        <div class="chart-section glass">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h3 style="margin: 0;">Usage Trends</h3>
+                <button class="glass" style="color: var(--text-muted); padding: 0.5rem 1rem; border-radius: 0.5rem; cursor: pointer;">Last 7 Days</button>
+            </div>
+            
+            <div class="chart-bars">
+                <!-- Mock Bars -->
+                <div class="bar-group"><div class="bar rag" style="height: 40%"></div><div class="bar llm" style="height: 30%"></div></div>
+                <div class="bar-group"><div class="bar rag" style="height: 60%"></div><div class="bar llm" style="height: 40%"></div></div>
+                <div class="bar-group"><div class="bar rag" style="height: 30%"></div><div class="bar llm" style="height: 20%"></div></div>
+                <div class="bar-group"><div class="bar rag" style="height: 80%"></div><div class="bar llm" style="height: 50%"></div></div>
+                <div class="bar-group"><div class="bar rag" style="height: 55%"></div><div class="bar llm" style="height: 45%"></div></div>
+                <div class="bar-group"><div class="bar rag" style="height: 70%"></div><div class="bar llm" style="height: 40%"></div></div>
+                <div class="bar-group"><div class="bar rag" style="height: 90%"></div><div class="bar llm" style="height: 60%"></div></div>
+            </div>
+            
+            <div style="display: flex; justify-content: center; gap: 2rem; margin-top: 2rem;">
+                 <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; color: var(--text-muted);">
+                     <div style="width: 10px; height: 10px; background: var(--primary); border-radius: 2px;"></div> RAG Queries
+                 </div>
+                 <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; color: var(--text-muted);">
+                     <div style="width: 10px; height: 10px; background: var(--accent); border-radius: 2px;"></div> LLM Generation
+                 </div>
+            </div>
+        </div>
+
+    </main>
+
+</body>
+</html>

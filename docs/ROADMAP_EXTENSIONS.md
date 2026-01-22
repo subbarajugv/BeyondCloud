@@ -54,20 +54,21 @@ This document outlines the strategic initiatives required to transform BeyondClo
     *   Admin dashboard for guardrail violations
 
 ## 🔐 5. GDPR & Data Compliance
-*   [ ] **Right to Erasure (Delete All)**
-    *   `DELETE /api/users/:id/data` - Purge all user sources, chunks, collections
-    *   Clean storage files (local + S3)
-    *   Clear FAISS/BM25 indices
-    *   Audit log with deletion timestamp
-*   [ ] **Right to Portability (Export)**
-    *   `GET /api/users/:id/export` - Export all data as ZIP
-    *   Include: sources, chunks, collections, traces
+*   [x] **Right to Erasure (Delete All)** ✅
+    *   `DELETE /api/admin/users/:id/data` - Admin deletes user data
+    *   `DELETE /api/admin/my-data?confirm=true` - Self-service deletion
+    *   Purges: sources, chunks, collections, usage stats, tickets, traces
+*   [x] **Right to Portability (Export)** ✅
+    *   `GET /api/admin/users/:id/export` - Admin exports user data
+    *   `GET /api/admin/my-data/export` - Self-service export
+    *   Exports as ZIP with JSON files
 *   [ ] **Data Retention Policies**
     *   Configurable auto-delete after N days
     *   Admin UI for retention settings
-*   [ ] **Delete Operation Tracing**
-    *   Add spans for all delete operations
-    *   Log who deleted what and when
+*   [ ] **Storage Cleanup** (Future)
+    *   Clean S3/local storage files on deletion
+    *   Clear FAISS/BM25 indices
+
 
 ## 📊 6. Extensible Dashboards & Observability
 
@@ -111,7 +112,21 @@ This document outlines the strategic initiatives required to transform BeyondClo
 
 
 
-## 🛡️ 7. Enterprise Hardening (Governance)
+## 🎫 7. Internal Issue Tracker (Dog-fooding)
+*   [ ] **Native Issue Management**
+    *   Extend ticket system for development issue tracking
+    *   Support: bugs, features, optimizations, docs
+    *   Labels, milestones, priority levels
+*   [ ] **Git Integration**
+    *   Link commits and PRs to issues
+    *   Release notes auto-linking (`BC-###` format)
+*   [ ] **AI-Powered Issue Management**
+    *   MCP server for AI agents to query/create issues
+    *   Auto-categorization and priority suggestions
+
+> 📄 **Detailed Design**: [FUTURE_ISSUE_TRACKER.md](FUTURE_ISSUE_TRACKER.md)
+
+## 🛡️ 8. Enterprise Hardening (Governance)
 *   [ ] **Intelligent Model Routing**
     *   Cost/Speed optimization: Route small tasks to 1B models, logic to 32B+ models
     *   Local vs. Cloud routing based on data sensitivity

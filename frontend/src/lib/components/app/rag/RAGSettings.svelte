@@ -1,20 +1,42 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { ragSettingsStore } from '$lib/stores/ragSettingsStore.svelte';
+  import { ragStore } from '$lib/stores/ragStore.svelte';
+  import { getEmbeddingModels, type EmbeddingProvider } from '$lib/services/ragSettingsApi';
   import { Button } from '$lib/components/ui/button';
   import { Input } from '$lib/components/ui/input';
   import { Label } from '$lib/components/ui/label';
   import { Checkbox } from '$lib/components/ui/checkbox';
   import * as Select from '$lib/components/ui/select';
   import { Separator } from '$lib/components/ui/separator';
-  import { Save, RotateCcw, Loader2 } from '@lucide/svelte';
+  import { Save, RotateCcw, Loader2, AlertTriangle } from '@lucide/svelte';
 
   // Local state for form
   let store = ragSettingsStore;
   
-  onMount(() => {
+  // Embedding models state
+  let embeddingProviders = $state<EmbeddingProvider[]>([]);
+  let embeddingModelsLoading = $state(false);
+  
+  // Computed: models for current provider
+  let availableModels = $derived(
+    embeddingProviders.find(p => p.name === store.settings.embedding_provider)?.models || []
+  );
+  
+  onMount(async () => {
     if (!store.initialized) {
       store.loadSettings();
+    }
+    
+    // Load embedding models
+    embeddingModelsLoading = true;
+    try {
+      const response = await getEmbeddingModels();
+      embeddingProviders = response.providers;
+    } catch (e) {
+      console.error('Failed to load embedding models:', e);
+    } finally {
+      embeddingModelsLoading = false;
     }
   });
 
@@ -30,6 +52,15 @@
       await store.resetToDefaults();
     }
   }
+  
+  function handleProviderChange(providerName: string) {
+    store.updateSetting('embedding_provider', providerName as 'sentence_transformers' | 'openai' | 'ollama');
+    // Reset model to first available for new provider
+    const provider = embeddingProviders.find(p => p.name === providerName);
+    if (provider && provider.models.length > 0) {
+      store.updateSetting('embedding_model', provider.models[0].name);
+    }
+  }
 
   // Context ordering options
   const orderingOptions = [
@@ -37,6 +68,13 @@
     { value: 'score_asc', label: 'Lowest Score First' },
     { value: 'position', label: 'Original Position' },
   ];
+  
+  // Provider display names
+  const providerLabels: Record<string, string> = {
+    'sentence_transformers': 'SentenceTransformers (Local)',
+    'openai': 'OpenAI',
+    'ollama': 'Ollama (Local)',
+  };
 </script>
 
 <div class="space-y-6 p-4">
@@ -46,6 +84,127 @@
       <span class="ml-2 text-muted-foreground">Loading settings...</span>
     </div>
   {:else}
+    <!-- Embedding Model Configuration -->
+    <div class="space-y-4">
+      <h3 class="text-lg font-semibold">Embedding Model</h3>
+      <p class="text-sm text-muted-foreground">
+        Choose the embedding provider and model for document vectorization.
+      </p>
+      
+      {#if embeddingModelsLoading}
+        <div class="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 class="h-4 w-4 animate-spin" />
+          Loading models...
+        </div>
+      {:else}
+        <div class="grid gap-4 sm:grid-cols-2">
+          <!-- Provider Selector -->
+          <div class="space-y-2">
+            <Label for="embedding_provider">Provider</Label>
+            <Select.Root
+              type="single"
+              value={{ value: store.settings.embedding_provider, label: providerLabels[store.settings.embedding_provider] || store.settings.embedding_provider }}
+              onValueChange={(v) => v && handleProviderChange(v.value)}
+            >
+              <Select.Trigger id="embedding_provider" class="w-full">
+                {providerLabels[store.settings.embedding_provider] || store.settings.embedding_provider}
+              </Select.Trigger>
+              <Select.Content>
+                {#each embeddingProviders as provider}
+                  <Select.Item value={provider.name} label={providerLabels[provider.name] || provider.name}>
+                    {providerLabels[provider.name] || provider.name}
+                  </Select.Item>
+                {/each}
+              </Select.Content>
+            </Select.Root>
+          </div>
+          
+          <!-- Model Selector -->
+          <div class="space-y-2">
+            <Label for="embedding_model">Model</Label>
+            <Select.Root
+              type="single"
+              value={{ value: store.settings.embedding_model, label: store.settings.embedding_model }}
+              onValueChange={(v) => v && store.updateSetting('embedding_model', v.value)}
+            >
+              <Select.Trigger id="embedding_model" class="w-full">
+                {store.settings.embedding_model}
+              </Select.Trigger>
+              <Select.Content>
+                {#each availableModels as model}
+                  <Select.Item value={model.name} label={model.name}>
+                    {model.name} <span class="text-muted-foreground">({model.dimensions}d)</span>
+                  </Select.Item>
+                {/each}
+              </Select.Content>
+            </Select.Root>
+          </div>
+        </div>
+        
+        <!-- Warning about changing embeddings -->
+        <div class="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+          <AlertTriangle class="h-4 w-4 mt-0.5 flex-shrink-0" />
+          <span>Changing embedding model requires re-ingesting existing documents for compatibility.</span>
+        </div>
+      {/if}
+    </div>
+
+    <Separator />
+
+    <!-- Advanced RAG Pipeline -->
+    <div class="space-y-4">
+      <h3 class="text-lg font-semibold text-primary">Advanced RAG Pipeline</h3>
+      
+      <div class="flex items-center space-x-2">
+        <Checkbox
+          id="advanced_mode"
+          checked={ragStore.advancedMode}
+          onCheckedChange={(checked) => ragStore.advancedMode = !!checked}
+        />
+        <Label for="advanced_mode" class="font-medium">Enable Advanced Pipeline</Label>
+      </div>
+      
+      {#if ragStore.advancedMode}
+        <div class="grid gap-4 sm:grid-cols-2 pl-6 pt-2">
+           <div class="space-y-2">
+            <Label for="context_budget">Token Budget</Label>
+            <Input
+              id="context_budget"
+              type="number"
+              min={1000}
+              max={32000}
+              value={ragStore.contextBudget}
+              onchange={(e) => ragStore.contextBudget = parseInt(e.currentTarget.value)}
+            />
+            <p class="text-xs text-muted-foreground">Tokens reserved for context window</p>
+          </div>
+          
+           <div class="space-y-2">
+            <Label for="hybrid_ratio">Hybrid Ratio (Verbatim)</Label>
+            <div class="flex items-center gap-2">
+                <Input
+                  id="hybrid_ratio"
+                  type="number"
+                  min={0.1}
+                  max={1.0}
+                  step={0.1}
+                  value={ragStore.hybridRatio}
+                  onchange={(e) => ragStore.hybridRatio = parseFloat(e.currentTarget.value)}
+                />
+                <span class="text-sm font-medium">{(ragStore.hybridRatio * 100).toFixed(0)}%</span>
+            </div>
+            <p class="text-xs text-muted-foreground">Ratio of budget for verbatim text vs summaries</p>
+          </div>
+        </div>
+        
+        <div class="rounded-md bg-muted p-3 text-sm text-muted-foreground ml-6">
+            Pipeline: <strong>Retrieval (50)</strong> → <strong>Rerank (Cross-Encoder)</strong> → <strong>Budgeting</strong> → <strong>Summarization (LLM)</strong> → <strong>Lost-in-Middle Assembly</strong>
+        </div>
+      {/if}
+    </div>
+
+    <Separator />
+
     <!-- Chunking Settings -->
     <div class="space-y-4">
       <h3 class="text-lg font-semibold">Chunking</h3>

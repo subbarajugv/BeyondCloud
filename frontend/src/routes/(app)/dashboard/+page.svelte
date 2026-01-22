@@ -139,6 +139,7 @@
     border-bottom: 1px solid var(--border, #e2e8f0);
     flex-wrap: wrap;
     gap: 1rem;
+    padding-right: 12rem; /* Make space for fixed user menu */
   }
 
   .dashboard-header h1 {

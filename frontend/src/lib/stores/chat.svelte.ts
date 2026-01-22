@@ -3,6 +3,7 @@ import { chatService, slotsService } from '$lib/services';
 import { config } from '$lib/stores/settings.svelte';
 import { serverStore } from '$lib/stores/server.svelte';
 import { agentStore } from '$lib/stores/agentStore.svelte';
+import { ragStore } from '$lib/stores/ragStore.svelte';
 import { waitForAuth } from '$lib/services/api';
 import { normalizeModelName } from '$lib/utils/model-names';
 import { filterByLeafNodeId, findLeafNode, findDescendantMessages } from '$lib/utils/branching';
@@ -524,6 +525,7 @@ class ChatStore {
 						toolCalls: string;
 						timings?: ChatMessageTimings;
 						model?: string;
+						ragCitations?: string;
 					} = {
 						content: finalContent || streamedContent,
 						thinking: reasoningContent || streamedReasoningContent,
@@ -536,6 +538,13 @@ class ChatStore {
 						modelPersisted = true;
 					}
 
+					// Add RAG citations if any were used
+					const citations = ragStore.getCitationsForDisplay();
+					if (citations.length > 0) {
+						updateData.ragCitations = JSON.stringify(citations);
+						ragStore.clearLastCitations();
+					}
+
 					await DatabaseStore.updateMessage(assistantMessage.id, { ...updateData, convId: assistantMessage.convId });
 
 					const messageIndex = this.findMessageIndex(assistantMessage.id);
@@ -544,6 +553,7 @@ class ChatStore {
 						timings?: ChatMessageTimings;
 						model?: string;
 						toolCalls?: string;
+						ragCitations?: string;
 					} = {
 						timings: timings
 					};
@@ -554,6 +564,10 @@ class ChatStore {
 
 					if (updateData.toolCalls !== undefined) {
 						localUpdateData.toolCalls = updateData.toolCalls;
+					}
+
+					if (updateData.ragCitations) {
+						localUpdateData.ragCitations = updateData.ragCitations;
 					}
 
 					this.updateMessageAtIndex(messageIndex, localUpdateData);

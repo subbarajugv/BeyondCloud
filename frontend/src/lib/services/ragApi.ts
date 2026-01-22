@@ -88,6 +88,13 @@ export interface QueryResponse {
     search_mode?: string;
 }
 
+export interface AdvancedRetrieveResponse {
+    context: string;
+    chunks: RAGChunk[];
+    tier_breakdown: Record<string, number>;
+}
+
+
 async function handleResponse<T>(response: Response): Promise<T> {
     if (!response.ok) {
         const text = await response.text();
@@ -171,6 +178,28 @@ export const ragApi = {
             body: JSON.stringify({ query, top_k: topK, min_score: minScore })
         });
         return handleResponse<RAGChunk[]>(response);
+    },
+
+    /**
+     * POST /api/rag/advanced-retrieve - Advanced Pipeline
+     */
+    async advancedRetrieve(
+        query: string,
+        contextWindow: number = 4096,
+        hybridRatio: number = 0.7,
+        sourceIds: string[] | null = null
+    ): Promise<AdvancedRetrieveResponse> {
+        const response = await fetch(`${RAG_API_BASE}/rag/advanced-retrieve`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({
+                query,
+                context_window: contextWindow,
+                hybrid_ratio: hybridRatio,
+                source_ids: sourceIds
+            })
+        });
+        return handleResponse<AdvancedRetrieveResponse>(response);
     },
 
     /**

@@ -12,6 +12,10 @@ const RAG_API_BASE = 'http://localhost:8001/api';
  * RAG Settings type matching backend schema
  */
 export interface RAGSettings {
+    // Embedding Configuration
+    embedding_provider: 'sentence_transformers' | 'openai' | 'ollama';
+    embedding_model: string;
+
     // Chunking
     chunk_size: number;
     chunk_overlap: number;
@@ -36,9 +40,28 @@ export interface RAGSettings {
 }
 
 /**
+ * Available embedding providers and their models
+ */
+export interface EmbeddingModel {
+    name: string;
+    dimensions: number;
+}
+
+export interface EmbeddingProvider {
+    name: string;
+    models: EmbeddingModel[];
+}
+
+export interface EmbeddingModelsResponse {
+    providers: EmbeddingProvider[];
+}
+
+/**
  * Default RAG settings (matches backend defaults)
  */
 export const DEFAULT_RAG_SETTINGS: RAGSettings = {
+    embedding_provider: 'sentence_transformers',
+    embedding_model: 'all-MiniLM-L6-v2',
     chunk_size: 500,
     chunk_overlap: 50,
     use_sentence_boundary: true,
@@ -112,4 +135,46 @@ export async function updateRAGSettings(
  */
 export async function resetRAGSettings(): Promise<RAGSettings> {
     return updateRAGSettings(DEFAULT_RAG_SETTINGS);
+}
+
+/**
+ * Fetch available embedding models from backend
+ */
+export async function getEmbeddingModels(): Promise<EmbeddingModelsResponse> {
+    const response = await fetch(`${RAG_API_BASE}/rag/embedding-models`, {
+        method: 'GET',
+        headers: getAuthHeaders(),
+    });
+
+    if (!response.ok) {
+        console.warn('Failed to fetch embedding models');
+        // Return default fallback
+        return {
+            providers: [
+                {
+                    name: 'sentence_transformers',
+                    models: [
+                        { name: 'all-MiniLM-L6-v2', dimensions: 384 },
+                        { name: 'all-mpnet-base-v2', dimensions: 768 },
+                    ]
+                },
+                {
+                    name: 'openai',
+                    models: [
+                        { name: 'text-embedding-3-small', dimensions: 1536 },
+                        { name: 'text-embedding-3-large', dimensions: 3072 },
+                    ]
+                },
+                {
+                    name: 'ollama',
+                    models: [
+                        { name: 'nomic-embed-text', dimensions: 768 },
+                        { name: 'mxbai-embed-large', dimensions: 1024 },
+                    ]
+                }
+            ]
+        };
+    }
+
+    return response.json();
 }

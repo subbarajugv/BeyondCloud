@@ -65,6 +65,7 @@ export interface DatabaseMessage {
 	extra?: DatabaseMessageExtra[];
 	timings?: ChatMessageTimings;
 	model?: string;
+	ragCitations?: string; // JSON string of Citation[] for RAG sources used
 }
 
 /**
