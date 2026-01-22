@@ -6,7 +6,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from ..services.provider_service import provider_service
+from app.services.provider_service import provider_service
 
 
 router = APIRouter(prefix="/providers", tags=["providers"])

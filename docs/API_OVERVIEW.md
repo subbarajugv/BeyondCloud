@@ -7,7 +7,7 @@ Complete reference for all API endpoints across both backend services.
 | Service | Port | Responsibility |
 |---------|------|----------------|
 | **Node.js** | 3000 | Auth, Conversations, Chat, Settings, Providers |
-| **Python** | 8001 | RAG, Agents, MCP, Usage Analytics, Health |
+| **Python** | 8008 | RAG, Agents, MCP, LLM Gateway, Usage Analytics, Health |
 
 ---
 
@@ -30,7 +30,7 @@ Complete reference for all API endpoints across both backend services.
 
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
-| POST | `/completions` | Optional | LLM chat (supports SSE streaming) |
+| POST | `/completions` | Optional | LLM chat (SSE streaming, proxies to Python when gateway enabled) |
 
 ### Conversations `/api/conversations`
 
@@ -61,7 +61,16 @@ Complete reference for all API endpoints across both backend services.
 
 ---
 
-## Python Backend (Port 8001)
+## Python Backend (Port 8008)
+
+### LLM Gateway `/api/llm`
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | `/chat` | ❌ | Unified LLM chat (SSE streaming) |
+| GET | `/status` | ❌ | Gateway status and providers |
+
+> **Feature Flag**: Set `USE_PYTHON_LLM_GATEWAY=true` in Node.js to route all chat through Python.
 
 ### Health Checks `/health`
 

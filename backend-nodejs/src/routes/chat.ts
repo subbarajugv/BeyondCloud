@@ -8,6 +8,8 @@ const router = Router();
  * POST /api/chat/completions
  * Proxy chat completions to the configured LLM provider
  * Supports streaming responses (SSE)
+ * 
+ * Can route through Python LLM Gateway when USE_PYTHON_LLM_GATEWAY=true
  */
 router.post('/completions', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
     const { messages, model, stream = true, ...options } = req.body;
@@ -22,11 +24,21 @@ router.post('/completions', optionalAuth, async (req: AuthenticatedRequest, res:
     }
 
     try {
-        // Get the active provider from settings or use default
-        // For now, use Ollama as primary provider
-        const providerConfig = config.providers['ollama'] || config.providers['llama.cpp'];
-        const baseUrl = providerConfig.baseUrl;
-        const apiKey = 'apiKey' in providerConfig ? providerConfig.apiKey : undefined;
+        let baseUrl: string;
+        let apiKey: string | undefined;
+
+        // Check if we should route through Python LLM Gateway
+        if (config.usePythonLlmGateway) {
+            // Route through Python backend for unified LLM management
+            baseUrl = `${config.pythonBackendUrl}/api/llm`;
+            apiKey = undefined; // Python handles auth
+            console.log('[LLM Gateway] Routing through Python backend');
+        } else {
+            // Direct routing to LLM provider (legacy behavior)
+            const providerConfig = config.providers['ollama'] || config.providers['llama.cpp'];
+            baseUrl = providerConfig.baseUrl;
+            apiKey = 'apiKey' in providerConfig ? (providerConfig as { apiKey?: string }).apiKey : undefined;
+        }
 
         // Build headers
         const headers: Record<string, string> = {
@@ -37,8 +49,13 @@ router.post('/completions', optionalAuth, async (req: AuthenticatedRequest, res:
             headers['Authorization'] = `Bearer ${apiKey}`;
         }
 
-        // Make request to LLM provider
-        const response = await fetch(`${baseUrl}/chat/completions`, {
+        // Determine endpoint path
+        const endpoint = config.usePythonLlmGateway
+            ? `${baseUrl}/chat`  // Python gateway endpoint
+            : `${baseUrl}/chat/completions`;  // Direct LLM endpoint
+
+        // Make request to LLM provider or gateway
+        const response = await fetch(endpoint, {
             method: 'POST',
             headers,
             body: JSON.stringify({

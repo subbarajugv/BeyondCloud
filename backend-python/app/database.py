@@ -4,16 +4,38 @@ Handles PostgreSQL connection with pgvector and tracing
 """
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy import text
-from typing import AsyncGenerator
+from sqlalchemy import text, create_engine
+from sqlmodel import Session
+from contextlib import contextmanager
+from typing import AsyncGenerator, Generator
 
 from app.config import get_settings
 
 settings = get_settings()
 DATABASE_URL = settings.database_url
 
-engine = create_async_engine(DATABASE_URL, echo=False)
+# Async engine for FastAPI/SQLAlchemy with connection pooling
+engine = create_async_engine(
+    DATABASE_URL,
+    echo=False,
+    pool_size=10,           # Number of connections to keep in pool
+    max_overflow=20,        # Max additional connections beyond pool_size
+    pool_timeout=30,        # Seconds to wait for a connection
+    pool_recycle=1800,      # Recycle connections after 30 minutes
+    pool_pre_ping=True,     # Validate connections before use
+)
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+# Sync engine for SQLModel (uses psycopg2) with connection pooling
+sync_engine = create_engine(
+    DATABASE_URL.replace("+asyncpg", ""),
+    echo=False,
+    pool_size=5,
+    max_overflow=10,
+    pool_timeout=30,
+    pool_recycle=1800,
+    pool_pre_ping=True,
+)
 
 
 class Base(DeclarativeBase):
@@ -21,12 +43,25 @@ class Base(DeclarativeBase):
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """Dependency for getting database sessions"""
+    """Async dependency for getting database sessions (SQLAlchemy)"""
     async with async_session() as session:
         try:
             yield session
         finally:
             await session.close()
+
+
+async def get_session() -> AsyncGenerator[AsyncSession, None]:
+    """Alias for get_db for compatibility"""
+    async with async_session() as session:
+        yield session
+
+
+@contextmanager
+def get_session_sync() -> Generator[Session, None, None]:
+    """Sync session context manager for SQLModel-based code"""
+    with Session(sync_engine) as session:
+        yield session
 
 
 async def init_database():
@@ -219,5 +254,130 @@ async def init_database():
             CREATE INDEX IF NOT EXISTS idx_violations_user ON guardrail_violations(user_id)
         """))
         
-        print("✅ Database initialized with pgvector, RAG collections, usage stats, storage, and dashboard tables")
+        # ============================================================
+        # AGENT SPAWNING TABLES
+        # ============================================================
+        
+        # Agent Templates - Policy definitions for agents
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS agent_templates (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                name VARCHAR(100) NOT NULL,
+                description TEXT,
+                
+                -- Ownership & Scope
+                owner_id UUID NOT NULL,
+                org_id UUID,
+                scope VARCHAR(20) NOT NULL DEFAULT 'personal',
+                
+                -- Policy Spec (JSON)
+                spec JSONB NOT NULL,
+                version INTEGER DEFAULT 1,
+                
+                -- RBAC
+                required_roles TEXT[] DEFAULT '{}',
+                max_template_tools TEXT[] DEFAULT '{}',
+                
+                -- Metadata
+                icon VARCHAR(50),
+                color VARCHAR(20),
+                is_active BOOLEAN DEFAULT true,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """))
+        
+        await conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_agent_templates_owner ON agent_templates(owner_id)
+        """))
+        await conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_agent_templates_scope ON agent_templates(scope)
+        """))
+        await conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_agent_templates_org ON agent_templates(org_id)
+        """))
+        
+        # Agent Instances - Runtime instances of agents
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS agent_instances (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                template_id UUID REFERENCES agent_templates(id) ON DELETE SET NULL,
+                template_version INTEGER,
+                
+                -- Ownership & Ancestry
+                spawned_by_user_id UUID NOT NULL,
+                org_id UUID,
+                parent_instance_id UUID REFERENCES agent_instances(id) ON DELETE SET NULL,
+                root_instance_id UUID,
+                depth INTEGER DEFAULT 0,
+                
+                -- State Machine
+                status VARCHAR(20) DEFAULT 'queued',
+                current_state VARCHAR(20) DEFAULT 'init',
+                step INTEGER DEFAULT 0,
+                
+                -- Context & Results
+                task TEXT,
+                context JSONB DEFAULT '{}',
+                result JSONB,
+                error TEXT,
+                
+                -- Metrics
+                tokens_used INTEGER DEFAULT 0,
+                cost_usd DECIMAL(10,6) DEFAULT 0,
+                
+                -- Timestamps
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW(),
+                completed_at TIMESTAMPTZ
+            )
+        """))
+        
+        await conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_agent_instances_status ON agent_instances(status)
+        """))
+        await conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_agent_instances_user ON agent_instances(spawned_by_user_id)
+        """))
+        await conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_agent_instances_parent ON agent_instances(parent_instance_id)
+        """))
+        await conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_agent_instances_template ON agent_instances(template_id)
+        """))
+        
+        # Agent Events - Audit trail for agent execution
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS agent_events (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                instance_id UUID REFERENCES agent_instances(id) ON DELETE CASCADE,
+                
+                -- Event Data
+                event_type VARCHAR(50) NOT NULL,
+                payload JSONB DEFAULT '{}',
+                
+                -- Tracing (OpenTelemetry compatible)
+                trace_id VARCHAR(32),
+                span_id VARCHAR(16),
+                
+                -- Metrics
+                tokens_used INTEGER DEFAULT 0,
+                latency_ms INTEGER,
+                
+                -- Timestamp
+                timestamp TIMESTAMPTZ DEFAULT NOW()
+            )
+        """))
+        
+        await conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_agent_events_instance ON agent_events(instance_id)
+        """))
+        await conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_agent_events_type ON agent_events(event_type)
+        """))
+        await conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_agent_events_timestamp ON agent_events(timestamp DESC)
+        """))
+        
+        print("✅ Database initialized with pgvector, RAG collections, usage stats, storage, dashboard, and agent spawning tables")
 

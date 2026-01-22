@@ -17,6 +17,7 @@ from app.middleware.rbac import require_min_role
 from app.database import get_db
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends
+from app.auth import get_current_user_id
 from app.services.usage_service import usage_service
 
 
@@ -47,7 +48,12 @@ class SetModeRequest(BaseModel):
 class ExecuteToolRequest(BaseModel):
     tool_name: str
     args: Dict[str, Any]
-    approved: bool = False  # Must be True if approval required
+    approved: bool = False  # Must be True if approved
+
+class AgentChatRequest(BaseModel):
+    message: str
+    agent_id: str = "chat"
+
 
 
 class ToolCallPending(BaseModel):
@@ -387,3 +393,31 @@ async def get_pending_calls(user_id: str = "default"):
             for p in session.pending_calls.values()
         ]
     }
+
+@router.post("/chat")
+async def run_agent(
+    request: AgentChatRequest,
+    user_id: str = Depends(get_current_user_id),
+):
+    """
+    Run an agent interaction.
+    """
+    from app.services.agent_controller import AgentController
+    
+    # Initialize controller
+    # usage: we need to persist sandbox path from session if available
+    session = get_session(user_id)
+    sandbox_path = session.sandbox_path or "/tmp/sandbox" # Fallback
+    
+    controller = AgentController(
+        agent_id=request.agent_id,
+        user_id=user_id,
+        sandbox_path=sandbox_path
+    )
+    
+    try:
+        result = await controller.run(request.message)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+

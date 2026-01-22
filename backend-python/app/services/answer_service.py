@@ -173,6 +173,8 @@ Please answer based on the context above."""
                     query=query,
                     answer=answer_text,
                     context=context,
+                    db=db,
+                    user_id=user_id,
                 )
                 grounding_score = hallucination_result.get("grounding_score", 1.0)
                 span.set_attribute("grounding_score", grounding_score)
@@ -243,11 +245,20 @@ Please answer based on the context above."""
         query: str,
         answer: str,
         context: str,
+        db: Optional[AsyncSession] = None,
+        user_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         LLM-based hallucination detection
         
         Analyzes if the answer is grounded in the provided context.
+        
+        Args:
+            query: The user's question
+            answer: The generated answer to check
+            context: The context used to generate the answer
+            db: Database session for usage tracking (optional)
+            user_id: User ID for usage tracking (optional)
         
         Returns:
             Dict with grounding_score (0-1), issues, and explanation
@@ -277,9 +288,14 @@ Analyze the answer and respond with JSON:
                     max_tokens=500,
                 )
                 
-                # Tracking: Hallucination check is also an LLM request
-                # Note: We can't easily get db/user_id here without passing them to _check_hallucination
-                # For now, we skip tracking for background checks or pass them in
+                # Track hallucination check LLM usage if db and user_id provided
+                if db and user_id:
+                    await usage_service.increment(db, user_id, "llm_requests")
+                    usage = response.get("usage", {})
+                    if usage.get("prompt_tokens"):
+                        await usage_service.increment(db, user_id, "llm_tokens_input", amount=usage["prompt_tokens"])
+                    if usage.get("completion_tokens"):
+                        await usage_service.increment(db, user_id, "llm_tokens_output", amount=usage["completion_tokens"])
                 
                 import json
                 content = response.get("content", "").strip()

@@ -116,3 +116,8 @@ class AdvancedRetrieveResponse(BaseModel):
     chunks: List[Dict[str, Any]]
     tier_breakdown: Dict[str, int]
 
+
+class VisibilityUpdate(BaseModel):
+    """Request to update source visibility"""
+    visibility: VisibilityType
+

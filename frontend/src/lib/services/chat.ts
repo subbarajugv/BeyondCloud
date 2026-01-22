@@ -226,7 +226,9 @@ export class ChatService {
 		try {
 			const apiKey = currentConfig.apiKey?.toString().trim();
 
-			const response = await fetch(`/v1/chat/completions`, {
+			// Route through Node.js backend for unified LLM gateway support
+			// Node.js will proxy to Python when USE_PYTHON_LLM_GATEWAY is enabled
+			const response = await fetch(`/api/chat/completions`, {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',

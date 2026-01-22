@@ -4,12 +4,30 @@
 import { agentApi, type AgentStatus, type ApprovalMode, type PendingToolCall, type ToolExecuteResult } from '$lib/services/agentApi';
 
 // Reactive state
+// Reactive state
 let sandboxPath = $state<string | null>(null);
 let sandboxActive = $state(false);
 let approvalMode = $state<ApprovalMode>('require_approval');
 let pendingCalls = $state<PendingToolCall[]>([]);
 let isLoading = $state(false);
 let error = $state<string | null>(null);
+
+// Agent Policy State
+export interface AgentPolicy {
+    id: string;
+    name: string;
+    description: string;
+    icon: string;
+    color: string;
+}
+
+export const BUILT_IN_POLICIES: AgentPolicy[] = [
+    { id: 'chat', name: 'Chat Assistant', description: 'Standard helpful assistant', icon: 'message-square', color: 'blue' },
+];
+
+let customPolicies = $state<AgentPolicy[]>([]);
+let selectedAgentId = $state<string>('chat');
+let activeAgent = $derived([...BUILT_IN_POLICIES, ...customPolicies].find(a => a.id === selectedAgentId) || BUILT_IN_POLICIES[0]);
 
 // Tool schemas for LLM
 let toolSchemas = $state<unknown[]>([]);
@@ -35,6 +53,33 @@ class AgentStore {
     get error() { return error; }
     get toolSchemas() { return toolSchemas; }
     get toolsEnabled() { return toolsEnabled; }
+    get selectedAgentId() { return selectedAgentId; }
+    get activeAgent() { return activeAgent; }
+    get agentPolicies() { return [...BUILT_IN_POLICIES, ...customPolicies]; }
+
+    /** Select an agent persona */
+    selectAgent(id: string) {
+        if (this.agentPolicies.some(a => a.id === id)) {
+            selectedAgentId = id;
+            if (typeof localStorage !== 'undefined') localStorage.setItem('selectedAgentId', id);
+        }
+    }
+
+    /** Fetch custom agents from backend */
+    async fetchCustomAgents(): Promise<void> {
+        try {
+            const list = await agentApi.listAgents();
+            customPolicies = list.map(a => ({
+                id: String(a.id),
+                name: a.name,
+                description: a.description || '',
+                icon: a.spec?.icon || 'user',
+                color: a.spec?.color || 'gray'
+            }));
+        } catch (e) {
+            console.error('Failed to fetch custom agents:', e);
+        }
+    }
 
     /**
      * Enable or disable tools being sent to LLM
@@ -56,6 +101,9 @@ class AgentStore {
             sandboxPath = status.sandbox_path;
             sandboxActive = status.sandbox_active;
             approvalMode = status.approval_mode;
+
+            // Load custom agents
+            await this.fetchCustomAgents();
 
             // Load tool schemas if sandbox is active
             if (sandboxActive) {
@@ -189,6 +237,28 @@ class AgentStore {
             return undefined;
         }
         return toolSchemas;
+    }
+
+    /**
+     * Execute agent chat
+     */
+    async executeAgentChat(message: string, agentId: string) {
+        return await agentApi.sendAgentMessage({ message, agent_id: agentId });
+    }
+
+    /** Save a custom agent */
+    async saveCustomAgent(agent: { name: string, description: string, spec: any }): Promise<boolean> {
+        try {
+            isLoading = true;
+            await agentApi.createAgent(agent);
+            await this.fetchCustomAgents();
+            return true;
+        } catch (e) {
+            error = (e as Error).message;
+            return false;
+        } finally {
+            isLoading = false;
+        }
     }
 }
 

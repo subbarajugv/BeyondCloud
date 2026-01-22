@@ -648,6 +648,48 @@ class ChatStore {
 	}
 
 	/**
+	 * Run specialized agent completion (non-streaming for now)
+	 */
+	private async runAgentCompletion(
+		allMessages: DatabaseMessage[],
+		assistantMessage: DatabaseMessage
+	): Promise<void> {
+		this.setConversationLoading(assistantMessage.convId, true);
+
+		try {
+			// Get user query from last message
+			const lastUserMsg = allMessages[allMessages.length - 1];
+			const query = lastUserMsg.content;
+
+			// Call Agent API
+			const result = await agentStore.executeAgentChat(query, agentStore.selectedAgentId);
+
+			// Update message
+			const messageIndex = this.findMessageIndex(assistantMessage.id);
+			this.updateMessageAtIndex(messageIndex, {
+				content: result.content
+			});
+
+			// Persist
+			await DatabaseStore.updateMessage(assistantMessage.id, {
+				content: result.content,
+				convId: assistantMessage.convId,
+				model: `agent:${result.agent}`
+			});
+
+			await DatabaseStore.updateCurrentNode(assistantMessage.convId, assistantMessage.id);
+
+		} catch (error) {
+			console.error('Agent execution failed:', error);
+			this.updateMessageAtIndex(this.findMessageIndex(assistantMessage.id), {
+				content: `Error: ${(error as Error).message}`
+			});
+		} finally {
+			this.setConversationLoading(assistantMessage.convId, false);
+		}
+	}
+
+	/**
 	 * Checks if an error is an abort error (user cancelled operation)
 	 * @param error - The error to check
 	 * @returns True if the error is an abort error

@@ -46,6 +46,10 @@ export const config = {
             apiKey: process.env.GROQ_API_KEY,
         },
     },
+
+    // Python Backend (LLM Gateway)
+    pythonBackendUrl: process.env.PYTHON_BACKEND_URL || 'http://localhost:8008',
+    usePythonLlmGateway: process.env.USE_PYTHON_LLM_GATEWAY === 'true',
 } as const;
 
 export type Config = typeof config;

@@ -203,6 +203,10 @@ app.include_router(agent.router)
 # MCP routes (Phase 6)
 app.include_router(mcp.router)
 
+# Custom Agents Config routes
+from app.routers import agents_config
+app.include_router(agents_config.router, prefix="/api")
+
 # Usage routes (Analytics)
 from app.routers import usage
 app.include_router(usage.router, prefix="/api")
@@ -214,6 +218,14 @@ app.include_router(health.router)
 # Admin routes (Dashboard)
 from app.routers import admin
 app.include_router(admin.router)
+
+# Agent Spawning routes (Templates & Instances)
+from app.routers import agent_spawning
+app.include_router(agent_spawning.router)
+
+# LLM Gateway routes (Unified LLM endpoint)
+from app.routers import llm
+app.include_router(llm.router, prefix="/api")
 
 # Models endpoint (convenience alias)
 @app.get("/api/models")

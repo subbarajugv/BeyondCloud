@@ -7,6 +7,12 @@
  * 
  * All tool calls are routed through MCP protocol for consistency.
  */
+import { getAccessToken } from './api';
+
+function getAuthHeaders() {
+    const token = getAccessToken();
+    return token ? { 'Authorization': `Bearer ${token}` } : {};
+}
 
 // Agent modes
 export type AgentMode = 'local' | 'remote';
@@ -28,8 +34,11 @@ function getStoredMode(): AgentMode {
     if (typeof localStorage === 'undefined') return 'local';
     const stored = localStorage.getItem('agentMode');
     if (stored === 'local' || stored === 'remote') return stored;
+
     return 'local';
 }
+
+
 
 let currentMode: AgentMode = getStoredMode();
 
@@ -218,7 +227,43 @@ export const agentApi = {
     async getToolsOpenAIFormat(): Promise<{ tools: unknown[]; count: number }> {
         const response = await fetch(`${API_URLS.remote.mcp}/tools/openai-format`);
         return handleResponse(response);
+    },
+
+    /** Run Agent Chat */
+    async sendAgentMessage(request: { message: string; agent_id: string }): Promise<{ content: string; agent: string; steps?: number }> {
+        const response = await fetch(`${getAgentApiBase()}/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...getAuthHeaders() } as HeadersInit,
+            body: JSON.stringify(request)
+        });
+        return handleResponse(response);
+    },
+
+    // ========== Custom Agents Management ==========
+
+    /** List all custom agents */
+    async listAgents(): Promise<any[]> {
+        const response = await fetch(`${getAgentApiBase()}/../../api/agents`);
+        return handleResponse(response);
+    },
+
+    /** Create a new custom agent */
+    async createAgent(agent: any): Promise<any> {
+        const response = await fetch(`${getAgentApiBase()}/../../api/agents`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(agent)
+        });
+        return handleResponse(response);
+    },
+
+    /** Delete a custom agent */
+    async deleteAgent(id: number): Promise<void> {
+        await fetch(`${getAgentApiBase()}/../../api/agents/${id}`, {
+            method: 'DELETE'
+        });
     }
+
 };
 
 // MCP Types
