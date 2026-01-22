@@ -33,9 +33,10 @@ config.set_main_option("sqlalchemy.url", database_url)
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# For autogenerate support, we don't have SQLAlchemy models (using raw SQL)
-# so target_metadata is None. We'll create manual migrations.
-target_metadata = None
+# Import models for autogenerate support
+# This allows: alembic revision --autogenerate -m "description"
+from app.models import Base
+target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
@@ -50,6 +51,7 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        include_object=include_object,
     )
 
     with context.begin_transaction():
@@ -57,10 +59,59 @@ def run_migrations_offline() -> None:
 
 
 def do_run_migrations(connection: Connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata)
+    context.configure(
+        connection=connection, 
+        target_metadata=target_metadata,
+        include_object=include_object,
+        include_name=include_name,
+        compare_type=False,  # Skip type differences (e.g., VARCHAR length)
+        compare_server_default=False,  # Skip server default comparisons
+    )
 
     with context.begin_transaction():
         context.run_migrations()
+
+
+# Tables managed by Node.js/TypeORM - exclude from Python migrations
+NODEJS_TABLES = {
+    "users", "conversations", "messages", "user_settings",
+    "agent_sessions", "refresh_tokens", "password_resets",
+    "migrations",  # TypeORM migrations table
+}
+
+
+def include_name(name, type_, parent_names):
+    """
+    Early filter to exclude Node.js tables during schema reflection.
+    This runs before include_object and prevents FK resolution errors.
+    """
+    if type_ == "table" and name in NODEJS_TABLES:
+        return False
+    return True
+
+
+def include_object(obj, name, type_, reflected, compare_to):
+    """
+    Filter to exclude Node.js managed tables from autogenerate.
+    Only Python-managed tables (defined in models.py) are tracked.
+    """
+    if type_ == "table" and name in NODEJS_TABLES:
+        return False
+    # Also exclude indexes on Node.js tables
+    if type_ == "index" and hasattr(obj, "table") and obj.table.name in NODEJS_TABLES:
+        return False
+    # Exclude foreign keys that reference Node.js tables
+    if type_ == "foreign_key_constraint":
+        # obj is a ForeignKeyConstraint - check if it references an excluded table
+        if hasattr(obj, "referred_table") and obj.referred_table.name in NODEJS_TABLES:
+            return False
+        # For reflected FKs, check elements
+        if hasattr(obj, "elements"):
+            for elem in obj.elements:
+                if hasattr(elem, "column") and hasattr(elem.column, "table"):
+                    if elem.column.table.name in NODEJS_TABLES:
+                        return False
+    return True
 
 
 async def run_async_migrations() -> None:
