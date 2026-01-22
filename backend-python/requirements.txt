@@ -96,3 +96,4 @@ deepeval>=0.21.0
 sentence-transformers>=2.2.0  # Embedding-based metrics
 ragas>=0.1.0  # RAG evaluation (optional)
 arize-phoenix>=3.0.0  # LLM observability (optional)
+alembic>=1.13.0

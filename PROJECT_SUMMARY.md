@@ -33,6 +33,7 @@ llamacpp-auth-webui/
 - **RAG Settings UI**: Configurable chunking, reranking, context assembly
 - **Unified LLM Gateway**: Centralized LLM routing with streaming support
 - **Resilient APIs**: Retry logic with exponential backoff, connection pooling
+- **Database Migrations**: Alembic for versioned schema management
 
 ## 📚 Key Documentation
 
