@@ -30,10 +30,44 @@ setup_logging(
 logger = get_logger(__name__)
 
 
+async def run_migrations():
+    """Run Alembic migrations on startup (upgrade to head)."""
+    if os.getenv("SKIP_MIGRATIONS", "").lower() == "true":
+        logger.info("Skipping migrations (SKIP_MIGRATIONS=true)")
+        return
+    
+    try:
+        from alembic.config import Config
+        from alembic import command
+        
+        # Get path to alembic.ini relative to this file
+        alembic_ini = os.path.join(os.path.dirname(__file__), "alembic.ini")
+        
+        if not os.path.exists(alembic_ini):
+            logger.warning(f"alembic.ini not found at {alembic_ini}, skipping migrations")
+            return
+        
+        alembic_cfg = Config(alembic_ini)
+        
+        # Run migrations synchronously (Alembic's command API is sync)
+        import asyncio
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, lambda: command.upgrade(alembic_cfg, "head"))
+        
+        logger.info("✅ Database migrations applied successfully")
+    except Exception as e:
+        logger.error(f"Migration failed: {e}")
+        # Don't crash app - init_database() will handle schema creation
+        # This allows fresh databases to work even if alembic isn't configured
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown events"""
-    # Startup
+    # Run Alembic migrations automatically
+    await run_migrations()
+    
+    # Startup - ensure tables exist (safe for migrations)
     await init_database()
     
     # Enable DB logging if configured
