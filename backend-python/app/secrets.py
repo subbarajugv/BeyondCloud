@@ -47,6 +47,16 @@ class SecretManager(ABC):
         """Retrieve multiple secrets at once (batch operation)"""
         pass
     
+    @abstractmethod
+    def get_secret_sync(self, key: str, default: Optional[str] = None) -> Optional[str]:
+        """Synchronous version of get_secret"""
+        pass
+
+    @abstractmethod
+    def get_secrets_sync(self, keys: list[str]) -> Dict[str, Optional[str]]:
+        """Synchronous version of get_secrets"""
+        pass
+
     async def close(self):
         """Cleanup resources"""
         pass
@@ -71,6 +81,14 @@ class EnvSecretManager(SecretManager):
     
     async def get_secrets(self, keys: list[str]) -> Dict[str, Optional[str]]:
         """Get multiple secrets from environment"""
+        return {key: os.getenv(key) for key in keys}
+
+    def get_secret_sync(self, key: str, default: Optional[str] = None) -> Optional[str]:
+        """Get secret from environment variable (sync)"""
+        return os.getenv(key, default)
+
+    def get_secrets_sync(self, keys: list[str]) -> Dict[str, Optional[str]]:
+        """Get multiple secrets from environment (sync)"""
         return {key: os.getenv(key) for key in keys}
 
 
@@ -151,6 +169,29 @@ class VaultSecretManager(SecretManager):
         for key in keys:
             results[key] = await self.get_secret(key)
         return results
+
+    def get_secret_sync(self, key: str, default: Optional[str] = None) -> Optional[str]:
+        """Get secret from Vault KV store (sync)"""
+        if key in self._cache:
+            return self._cache[key]
+        
+        try:
+            client = self._get_client()
+            secret_path = f"{self._path}/{key}"
+            response = client.secrets.kv.v2.read_secret_version(
+                path=secret_path,
+                mount_point=self._mount
+            )
+            value = response["data"]["data"].get("value", default)
+            self._cache[key] = value
+            return value
+        except Exception as e:
+            logger.warning(f"Failed to get secret '{key}' from Vault (sync): {e}")
+            return default
+
+    def get_secrets_sync(self, keys: list[str]) -> Dict[str, Optional[str]]:
+        """Get multiple secrets from Vault (sync)"""
+        return {key: self.get_secret_sync(key) for key in keys}
     
     async def close(self):
         """Close Vault client connection"""
@@ -241,6 +282,36 @@ class AWSSecretManager(SecretManager):
         for key in keys:
             results[key] = await self.get_secret(key)
         return results
+
+    def get_secret_sync(self, key: str, default: Optional[str] = None) -> Optional[str]:
+        """Get secret from AWS Secrets Manager (sync)"""
+        if key in self._cache:
+            return self._cache[key]
+        
+        try:
+            import json
+            client = self._get_client()
+            secret_name = f"{self._prefix}{key}"
+            response = client.get_secret_value(SecretId=secret_name)
+            if "SecretString" in response:
+                secret_string = response["SecretString"]
+                try:
+                    secret_data = json.loads(secret_string)
+                    value = secret_data.get("value", secret_string)
+                except json.JSONDecodeError:
+                    value = secret_string
+            else:
+                import base64
+                value = base64.b64decode(response["SecretBinary"]).decode("utf-8")
+            self._cache[key] = value
+            return value
+        except Exception as e:
+            logger.warning(f"Failed to get secret '{key}' from AWS (sync): {e}")
+            return default
+
+    def get_secrets_sync(self, keys: list[str]) -> Dict[str, Optional[str]]:
+        """Get multiple secrets from AWS (sync)"""
+        return {key: self.get_secret_sync(key) for key in keys}
     
     async def close(self):
         """Cleanup AWS client"""
@@ -279,9 +350,15 @@ def get_secret_manager_instance() -> SecretManager:
 
 
 async def get_secret(key: str, default: Optional[str] = None) -> Optional[str]:
-    """Convenience function to get a secret"""
+    """Convenience function to get a secret (async)"""
     manager = get_secret_manager_instance()
     return await manager.get_secret(key, default)
+
+
+def get_secret_sync(key: str, default: Optional[str] = None) -> Optional[str]:
+    """Convenience function to get a secret (sync)"""
+    manager = get_secret_manager_instance()
+    return manager.get_secret_sync(key, default)
 
 
 # Alias for common usage

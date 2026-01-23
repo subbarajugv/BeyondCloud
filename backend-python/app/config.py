@@ -63,6 +63,32 @@ class Settings(BaseSettings):
     s3_secret_key: Optional[str] = None
     s3_region: str = "us-east-1"
     
+    def __init__(self, **values: Any):
+        super().__init__(**values)
+        self._load_enterprise_secrets()
+
+    def _load_enterprise_secrets(self):
+        """
+        Dynamically load sensitive settings from the configured SecretManager.
+        This overrides values from .env or environment variables if found in
+        the secure backend (Vault, AWS).
+        """
+        from app.secrets import get_secret_sync
+        
+        # List of sensitive keys to attempt loading
+        sensitive_keys = [
+            "DATABASE_URL", "JWT_SECRET", 
+            "OPENAI_API_KEY", "GEMINI_API_KEY", "GROQ_API_KEY",
+            "S3_ACCESS_KEY", "S3_SECRET_KEY"
+        ]
+        
+        for key in sensitive_keys:
+            secret = get_secret_sync(key)
+            if secret:
+                attr_name = key.lower()
+                if hasattr(self, attr_name):
+                    setattr(self, attr_name, secret)
+    
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
